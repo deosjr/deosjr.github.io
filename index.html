@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<canvas width="960" height="500"></canvas>
+<body>
+<script src="https://d3js.org/d3.v6.min.js"></script>
+<script type="text/javascript">
+// obvious credit to https://observablehq.com/@mbostock/tadpoles
+var canvas = document.querySelector("canvas"),
+    context = canvas.getContext("2d");
+context.lineJoin = "round";
+  context.lineCap = "round";
+
+const width = 960, height = 500;
+let n = 1000;
+let v = 5;
+let radius = 4;
+
+const tadpoles = new Array(n).fill().map(() => ({
+    vx: (Math.random() - 0.5) * v,
+    vy: (Math.random() - 0.5) * v,
+    px: Math.random() * width,
+    py: Math.random() * height,
+    count: 0
+  }));
+
+let map = new Map();
+var i;
+for (i=0; i<tadpoles.length; i++) {
+    let t = tadpoles[i]
+    map.set(""+parseInt(t.px)+"."+parseInt(t.py), i)
+}
+
+function loop() {
+    context.clearRect(0, 0, width, height);
+
+    tadpoles.forEach(function(t, i, array) {
+      let dx = t.vx;
+      let dy = t.vy;
+      let x = t.px += dx;
+      let y = t.py += dy;
+
+      // Bounce off the walls.
+      if (x < 0 || x > width) t.vx *= -1;
+      if (y < 0 || y > height) t.vy *= -1;
+
+      // collisions
+      let c = map.get(""+parseInt(x)+"."+parseInt(y));
+      if (c != undefined) {
+        if (c != i) {
+          let other = tadpoles[c];
+          // TODO: 2d elastic collision instead of 1d
+          let tempx = other.vx;
+          let tempy = other.vy;
+          other.vx = t.vx;
+          other.vy = t.vy;
+          t.vx = tempx;
+          t.vy = tempy;
+        }
+      }
+
+      // Head
+      context.save();
+      context.translate(x, y);
+      context.rotate(Math.atan2(t.vy, t.vx));
+      context.beginPath();
+      context.ellipse(0, 0, radius, radius, 0, 0, 2 * Math.PI);
+      if (i%100 == 0) {
+        context.fillStyle = 'red';
+      }
+      context.fill();
+      context.restore();
+    })
+
+    requestAnimationFrame(loop);
+  }
+
+loop();
+
+</script>
+<div id="graph"></div>
+</body>
+</html>
