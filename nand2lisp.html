@@ -6,6 +6,9 @@
 <body onload="prettyPrint()" style="max-width: 49em; margin-left: 2em">
 <h1>Nand2Lisp</h1>
 
+<h2>V1: from Hack to Lisp machine</h2>
+
+<p>
 I finished the
 <a href="https://www.nand2tetris.org/">nand2tetris book</a>
 a while ago, building
@@ -35,7 +38,7 @@ The CPU had to support a new instruction bypassing the ALU, the assembler had to
 <p>
 The book includes a short postscript with ideas on how to extend the project. 
 One of those is to replace Jack with a Scheme.
-In this post I will take that idea a bit further and build a lisp machine with minimal modifications to the nand2tetris computer architecture and its Hack machine language.
+In this series of posts I will take that idea a bit further and build a lisp machine with minimal modifications to the nand2tetris computer architecture and its Hack machine language.
 It assumes familiarity with the book, as if it is just another chapter at the end.
 The aim is to have a Lisp <i>eval</i> loop as close to the metal as possible and understand the benefits of running Lisp as both operating system and application.
 </p>
@@ -226,10 +229,35 @@ The solution for now is to keep a global variable <tt>FREE</tt> in memory. The f
 
 <h2>Eval</h2>
 
+Here's a pseudocode version of the evaluation function we are going to build:
+
+<pre class="prettyprint">
+function eval(env, e):
+    if e is a procedure:
+        return e
+    // e is guaranteed to be an expression
+    if e is an atom:
+        if e is a symbol:
+            return env.lookup(e)
+        // e is guaranteed to be a primitive
+        return e
+    // e is guaranteed to be a pair
+    f, args = e[0], e[1:]     // unpack the list e
+    f = eval(env, f)
+    args = map(eval, args)
+    return f(args)
+</pre>
+
+This means we do not support any keywords like <tt>lambda</tt> or <tt>define</tt> yet.
+In fact, the only function we will support is addition, represented by the symbol <tt>+</tt>.
+Since all our functions take only a single argument, we will have to pass in the list 
+<tt>(env e)</tt>. This is then manipulated on the stack using car and cdr.
+Let's start writing the eval function in VM language:
+
 <pre class="prettyprint">
 // (eval env e) -> evaluation of e in env, or NIL if error
-// NOTE env is an argument, not ENV.
-// TODO: if first argument is not an env assoc list (how?), use *ENV instead
+// NOTE env is an argument, not ENV, which is a reference to the evaluating environment.
+// TODO: if first argument is not an env assoc list (how?), use *ENV instead, ie support (eval e)
 function eval
     push constant 0     // prepare local 0 = e
     push constant 0     // prepare local 1 = evaluated procedure
@@ -248,9 +276,22 @@ function eval
     is-primitive
     if-goto evalself
     // guaranteed to be a pair!
+</pre>
+
+The start of our evaluating function is doing most of the type-based branching.
+Note that we do use local variables here which we have to prepare explicitly by pushing zeroes on the working stack.
+Most other functions will use the env to set local variables, but we will need <tt>define</tt> first for that.
+
+<p>
+We enter the more complicated <i>evalpair</i> before others because of the fallthrough in the above type switch.
+All it does here is to evaluate the car of e, which is expected to yield a procedure.
+If it does, we jump to <i>evalargs</i> which is explained later.
+This is the first time we see how to call the eval function from the VM: pushing arguments on the stack and cons-ing them into one list pointer argument.
+
+<pre class="prettyprint">
 label evalpair
     push argument
-    car         // env on the stack
+    car                 // env on the stack
     push local 0
     car
     push constant 8192  // 0x2000 = emptylist
@@ -264,6 +305,13 @@ label evalpair
     // attempt to apply non-procedure
     push constant 0
     return
+</pre>
+
+Procedures and primitives evaluate to themselves.
+Symbols we look up in the environment using <tt>ASSQ</tt>, or in this case its VM translation <tt>assoc.assq</tt>.
+The latter takes the list <tt>(env e)</tt> as its argument so we can just pass the full argument to eval.
+
+<pre class="prettyprint">
 label evalself
     push local 0
     return
@@ -271,6 +319,15 @@ label evalsymbol
     push argument
     call assoc.assq
     return
+</pre>
+
+Here is where things get really interesting.
+Before calling the procedure, we need to evaluate the arguments that are being passed in.
+We can traverse the input list until we hit emptylist marking the end, call eval on each element, and leave the results on the stack.
+In order to cons the correct amount of times at the end, we'll keep <tt>numargs</tt> in a separate local var. <br>
+Due to how cons works we can only cons at the end unfortunately or this would not be needed.
+
+<pre class="prettyprint">
 label evalargs
     // we will need to build ( evaluatedargs ... )
     // on the stack, then call the evaluated func with those args
@@ -282,19 +339,26 @@ label evalargs
     push local 2
     push constant 1
     add
-    pop local 2     // numargs++
+    pop local 2         // numargs++
     push local 0
     cdr
     pop local 0
     push argument
-    car             // env on the stack
+    car                 // env on the stack
     push local 0
     car
     push constant 8192  // 0x2000 = emptylist
     cons
     cons
-    call eval.eval  // returns evalled arg, or NIL if error
+    call eval.eval      // returns evalled arg, or NIL if error
     goto evalargs
+</pre>
+
+At this point we should have all arguments evaluated and waiting on the stack.
+The procedure to call is stored in local variable 1.
+Here we create the list of arguments by calling cons <tt>numargs</tt> times after pushing the end marker.
+
+<pre class="prettyprint">
 label evalprocedure
     push constant 8192  // 0x2000 = emptylist
 // cons numargs times
@@ -314,7 +378,16 @@ label call
     // TODO
     call eval.plus
     return
+</pre>
 
+For this first version we will leave this at a hardcoded goto, but the procedure could either be referencing a builtin one, a user-defined one (using <tt>lambda</tt>),
+or a special one like <tt>lambda</tt>, <tt>define</tt> or <tt>if</tt>, each codifying different jumps around instruction memory.
+
+<p>
+The actual implementation of <tt>plus</tt> is pretty straightforward, but we have to remember to mask the result to keep the type tag intact.
+Probably a lot faster if hand-rolled in assembly, but then we'd have to think about how to jump to it correctly.
+
+<pre class="prettyprint">
 // TODO: make variadic, just have to check emptylist in a loop
 function plus
     push argument
@@ -369,9 +442,9 @@ function main
     call eval.eval
     write               // expect 0x402a
 
-    push constant 0 // void return
+    push constant 0     // void return
     return
 
 </pre>
 
-The other missing part is the <i>symbol table</i>. More on that later.
+The other missing part is the <i>symbol table</i>, storing string->symbol lookups. More on that later.
