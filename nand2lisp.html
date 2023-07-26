@@ -1,0 +1,377 @@
+<head>
+<title>Nand2Lisp</title>
+<link href="prettify.css" type="text/css" rel="stylesheet" /> 
+<script type="text/javascript" src="prettify.js"></script> 
+</head>
+<body onload="prettyPrint()" style="max-width: 49em; margin-left: 2em">
+<h1>Nand2Lisp</h1>
+
+I finished the
+<a href="https://www.nand2tetris.org/">nand2tetris book</a>
+a while ago, building
+<a href="https://github.com/deosjr/nand2tetris">my own tooling in Go</a>
+to simulate a simple computer all the way up from NAND-gates.
+After that I dove into
+<a href="https://mitp-content-server.mit.edu/books/content/sectbyfn/books_pres_0/6515/sicp.zip/index.html">SICP</a>
+and went on to get a translation of Peter Norvig's
+<a href="https://norvig.com/lispy.html">lispy</a>
+running on the nand2tetris computer.
+I left the project there to explore the wonderful world of Lisp more.
+Now it is time to come back with all the things I've learned, and build a nand2tetris-style Lisp machine.
+
+<h2>Slightly longer intro</h2>
+
+The nand2tetris book, or <i>The Elements of Computing Systems</i> by Noam Nisan and Shimon Schocken, describes
+multiple levels of a functioning computer.
+I followed it from the configuration of gates to make chips through machine language,
+assembly, a virtual machine and finally the high level language Jack.
+The only real modification to the setup that I ended up making was allowing for the bitshift operation because multiplication felt too slow.
+For this I implemented a
+<a href="https://en.wikipedia.org/wiki/Barrel_shifter">barrel shifter</a>
+circuit, and plugging this in meant extending all the abstracting layers.
+The CPU had to support a new instruction bypassing the ALU, the assembler had to recognize the new instruction, and if I had wanted to I could've exposed this all the way into Jack
+(or its Golang equivalent in my case).
+
+<p>
+The book includes a short postscript with ideas on how to extend the project. 
+One of those is to replace Jack with a Scheme.
+In this post I will take that idea a bit further and build a lisp machine with minimal modifications to the nand2tetris computer architecture and its Hack machine language.
+It assumes familiarity with the book, as if it is just another chapter at the end.
+The aim is to have a Lisp <i>eval</i> loop as close to the metal as possible and understand the benefits of running Lisp as both operating system and application.
+</p>
+
+<h2>Computer Architecture and the LISP language</h2>
+
+The core data structure in Lisp is the cons cell.
+A lot of the time in evaluating s-expressions will be spent traversing this via the <i>car</i> and <i>cdr</i> commands.
+The easiest way to represent this close to where the machine language can efficiently execute on it is to add another RAM16K chip next to the main memory in the Hack computer,
+which will be addressed in the same way and at the same time. Each cycle we will fetch data from both RAM chips and feed it into the ALU.
+The first RAM chip will represent the car and the second the cdr in memory.
+
+<p> TODO: Figure 5.7 (Data memory) updated </p>
+
+This change makes addresses not just pointers into a flat list, but pointers into a list of cons cells (or pairs).
+But not everything in Lisp is a pair: we have atoms which can be symbols or primitives such as numbers, and procedures.
+This type information is crucial to handle s-expressions at this low level.
+We can represent this by taking some bits of our 16-bit registers and encode type data in those.
+This changes the Hack platform into a <a href="https://en.wikipedia.org/wiki/Tagged_architecture">tagged architecture</a>.
+We'll use the first 3 bits, leaving us with only 13 to represent data with.
+The alternative would be to extend the bitsize, but that would be a more drastic overall change.
+
+<p>
+<table border=1 cellspacing=0 cellpadding=3>
+  <tr style="background-color:#EEEEEE"><th>Prefix<th width="23%">Type<th>Example
+
+  <tr><td align=center>000<td>Pair<td><tt>(+ x 3)</tt>
+  <tr><td align=center>001<td>Empty list<td><tt>()</tt>
+  <tr><td align=center>010<td>Primitive<td><tt>42</tt>
+  <tr><td align=center>011<td>Symbol<td><tt>x</tt>
+  <tr><td align=center>100<td>Procedure<td><tt>func<tt>
+  <tr><td align=center>101<td>Builtin<td><tt>+</tt>
+
+   </table>
+</p>
+
+The first 3 bits indicate ISPROCEDURE, ISATOM and ISSYMBOL respectively.
+Their negations are ISEXPRESSION, ISPAIR and ISPRIMITIVE.
+The last two missing combinations I will most likely use to represent special procedures, more on that later.
+
+<p>At this point we have all the setup we need to build Lisp-specific machine instructions.
+What's left is to define them and extend the ALU to recognise these new instructions and execute them without breaking the existing Hack ones.
+
+<h2>Machine Language</h2>
+
+Here's a refresher on the original Hack instructions and how a 16-bit word maps to functionality:
+
+<p>
+<table border=1 cellspacing=0 cellpadding=3>
+  <tr style="background-color:#EEEEEE"><th>c<th colspan="2">free<th>a<th colspan="6">comp<th colspan="3">dest<th colspan="3">jump<th>instruction
+  <tr><td>0<td>v<td>v<td>v<td>v<td>v<td>v<td>v<td>v<td>v<td>v<td>v<td>v<td>v<td>v<td>v<td>A-instruction: <i>@value</i>
+  <tr><td>1<td>1<td>1<td>1<td>1<td>1<td>0<td>0<td>0<td>0<td>0<td>1<td>0<td>0<td>0<td>0<td>C-instruction: <i>dest=comp;jump</i>. In this case <tt>D=M</tt>
+</table>
+
+<p>
+You can see two bits are completely unused.
+We will call them <tt>b[1]</tt> and <tt>b[2]</tt>, or <tt>useALU</tt> and <tt>writeCdrM</tt> respectively.
+The following modifications leave the Hack instructions unaltered, meaning the assembler will also still be valid.
+<ul>
+<li>If <tt>b[1]</tt> is high, we will use the Hack ALU like normal, but otherwise we will ignore its output completely and use our Lisp-specific gates.
+<li>If <tt>b[2]</tt> is high, we will write the CDR output to the CDR RAM.
+</ul>
+Since the original Hack platform did not have this second RAM the ALU does not know or understand it: just to be sure we will never write to CDR from ALU.
+
+<p>
+This leaves at least 7 bits (<tt> a + comp </tt>) to switch between different instructions.
+Even if we don't find an elegant way like the ALU to encode them together, we can make an ugly switch using Mux-gates.
+Here's the ones I've found I needed to make eval work at the virtual machine level; their implementation in gates is left to the reader :)
+
+<p>
+<table border=1 cellspacing=0 cellpadding=3>
+  <tr style="background-color:#EEEEEE"><th>Command<th>Instruction<th>Example
+
+  <tr><td>SETCAR<td>1111001100001000<td>shorthand for <tt>M=D</tt>, not a new instruction
+  <tr><td>SETCDR<td>1010111111000000<td>writes <tt>D</tt> to CDR register
+  <tr><td>MCAR<td>1111110000010000<td>shorthand for <tt>D=M</tt>, not a new instruction
+  <tr><td>MCDR<td>1000011111010000<td>writes value of CDR register into <tt>D</tt>
+  <tr><td>EQLM<td>1000010111010000<td>sets <tt>D</tt> to <tt>0xffff</tt> if <tt>M == D</tt>, otherwise <tt>0x0000</tt>
+  <tr><td>ISSYMB<td>1000001011010000<td>checks tags of <tt>M</tt>, setting <tt>D</tt> to true or false the same way as <tt>EQLM</tt>
+  <tr><td>ISPRIM<td>1000001010010000<td>similar but checking different prefix
+  <tr><td>ISPROC<td>1000001101010000<td>for now, checks 101 prefix (so actually more ISBUILTINPROC).
+  <tr><td>ISEMPTY<td>1000001001010000<td>all 4 of these reuse the same gates; prefix can be found in the instruction <tt>b[7:9]</tt>
+  <tr><td>EMPTYCDR<td>1000000001010000<td>like the above but checks the CDR register instead
+   </table>
+</p>
+
+<h2>Assembler</h2>
+
+The changes to assembler, virtual machine and compiler are not that interesting.
+Instead let's have a look at a program using these instructions, hand-written in extended Hack assembly.
+In order to build the <tt>eval</tt> function we need one very important component that is not yet reflected in our types: the <i>environment</i>.
+
+<p>
+At its most basic, the environment is a mapping of symbols to s-expressions.
+Norvig's lispy uses a dictionary; in <a href="https://github.com/deosjr/whistle">my own Golang-based Lisp interpreter</a> I do the same thing.
+But we don't have to implement hashmaps: we already have lists! <br>
+We can use <a href="https://en.wikipedia.org/wiki/Association_list">association lists</a>, with the key being a symbol and the value an s-expression.
+
+<pre class="prettyprint">
+(ASSQ)
+    // assume @R11 = K (key) and @R12 = P (pointer to assoc list)
+    @R12
+    A=M
+    A=M
+    D=M
+    @R11
+    EQLM
+    @ASSQCONTINUE
+    D;JEQ
+    // here K == D !
+    @R12
+    A=M
+    A=M
+    MCDR
+    @0x6002     // I've used this address to write to tape output
+    M=D
+    @END
+    0;JMP
+(ASSQCONTINUE)
+    @R12
+    A=M
+    EMPTYCDR
+    @FAILTOFIND
+    D;JNE
+    @R12
+    A=M
+    MCDR
+    @R12
+    M=D
+    @ASSQ
+    0;JMP
+(FAILTOFIND)
+    @END
+    0;JMP
+</pre>
+
+That's pretty compact!
+
+<h2>Virtual Machine</h2>
+
+We could handroll <tt>eval</tt> in much the same way, but at some point using the stack abstraction speeds up the process a lot.
+I've made a few modifications to the Hack virtual machine to better represent a functional language and get a graps for the differences.
+First of all, we will do away with local variables and force all functions to take exactly one argument.
+Local vars are not needed because we will use the environment, and since we have list we can pass a variadic amount of args by just passing a list pointer.
+Local variables will make an appearance in <tt>eval</tt> but will refer to the first <tt>n</tt> items on the function's working stack.
+Most functions are expected to not have to use this at all.
+
+<p>
+Instead of <tt>LCL</tt> we store a pointer to <tt>ENV</tt>, a pointer to the current environment we are evaluating in.
+The <tt>THIS</tt> and <tt>THAT</tt> registers are also no longer needed, just like <tt>pointer</tt> and <tt>temp</tt>.
+This simplifies things quite a bit: calling and returning from functions has less overhead.
+
+<p>
+<table border=1 cellspacing=0 cellpadding=3>
+  <tr><td align=right>ARG &#10145;<td>argument
+  <tr style="background-color:#EEEEEE"><td rowspan="3"><td>return address
+  <tr style="background-color:#EEEEEE"><td>saved ENV
+  <tr style="background-color:#EEEEEE"><td>saved ARG
+  <tr><td align=right>SP &#10145;<td>working stack
+
+   </table>
+</p>
+
+<h2>CONS and memory allocation</h2>
+We want <tt>cons</tt> to be supported on the VM level: it consumes the top two items on the stack and creates a new cons cell on the heap.
+If we push 4, then 7, then call cons, the result should be the cons cell <tt>(4 . 7)</tt>. <br>
+In order to do so we must support some form of <i>alloc</i> at this abstraction level and we will do so making the following assumptions:
+
+<ul>
+<li> We only ever need to alloc one space at a time, ie only support <tt>alloc(1)</tt> for a cons cell
+<li> At some point we will support compacting garbage collection, so we can always alloc downwards
+</ul>
+
+The solution for now is to keep a global variable <tt>FREE</tt> in memory. The first few registers now look like:
+
+<p>
+<table border=1 cellspacing=0 cellpadding=3>
+  <tr style="background-color:#EEEEEE"><th>Register<th width="23%">Name<th>Usage
+
+  <tr><td align=center>RAM[0]<td><tt>NIL</tt><td>indicates failure
+  <tr><td align=center>RAM[1]<td><tt>SP</tt><td>stack pointer
+  <tr><td align=center>RAM[2]<td><tt>ENV</tt><td>environment pointer
+  <tr><td align=center>RAM[3]<td><tt>ARG</tt><td>argument pointer
+  <tr><td align=center>RAM[4]<td><tt>FREE</tt><td>starts at 2048, base of heap
+
+   </table>
+</p>
+
+<h2>Eval</h2>
+
+<pre class="prettyprint">
+// (eval env e) -> evaluation of e in env, or NIL if error
+// NOTE env is an argument, not ENV.
+// TODO: if first argument is not an env assoc list (how?), use *ENV instead
+function eval
+    push constant 0     // prepare local 0 = e
+    push constant 0     // prepare local 1 = evaluated procedure
+    push constant 0     // prepare local 2 = num args
+    push argument
+    cdr
+    car
+    pop local 0         // store e in lcl0
+    push local 0
+    is-procedure
+    if-goto evalself
+    push local 0
+    is-symbol
+    if-goto evalsymbol
+    push local 0
+    is-primitive
+    if-goto evalself
+    // guaranteed to be a pair!
+label evalpair
+    push argument
+    car         // env on the stack
+    push local 0
+    car
+    push constant 8192  // 0x2000 = emptylist
+    cons
+    cons
+    call eval.eval
+    pop local 1
+    push local 1        // evalled procedure
+    is-procedure
+    if-goto evalargs
+    // attempt to apply non-procedure
+    push constant 0
+    return
+label evalself
+    push local 0
+    return
+label evalsymbol
+    push argument
+    call assoc.assq
+    return
+label evalargs
+    // we will need to build ( evaluatedargs ... )
+    // on the stack, then call the evaluated func with those args
+    push local 0
+    cdr
+    // if emptylist, we ran out of args
+    is-emptylist
+    if-goto evalprocedure
+    push local 2
+    push constant 1
+    add
+    pop local 2     // numargs++
+    push local 0
+    cdr
+    pop local 0
+    push argument
+    car             // env on the stack
+    push local 0
+    car
+    push constant 8192  // 0x2000 = emptylist
+    cons
+    cons
+    call eval.eval  // returns evalled arg, or NIL if error
+    goto evalargs
+label evalprocedure
+    push constant 8192  // 0x2000 = emptylist
+// cons numargs times
+label consloop
+    push constant 0
+    push local 2
+    eq
+    if-goto call
+    cons
+    push local 2
+    push constant 1
+    sub
+    pop local 2
+    goto consloop
+// actually call the function stored in local 1
+label call
+    // TODO
+    call eval.plus
+    return
+
+// TODO: make variadic, just have to check emptylist in a loop
+function plus
+    push argument
+    car
+    push argument
+    cdr
+    car
+    add
+    // NOTE: primitives are prefixed with 010
+    push constant 8191  // 0x1fff
+    and
+    push constant 16384 // 0x4000
+    or
+    return
+</pre>
+
+<h2>Compiler</h2>
+
+The Lisp compiler is mainly a parser that can read s-expressions, then writes VM instructions writing the parsed expressions into starting memory.
+Currently unimplemented, I write them into memory by hand right now. 
+So instead, here is VM level main function showing different types set into memory, evaluated and printed.
+
+<pre class="prettyprint">
+function main
+    push constant 100   // pointer to ENV, set in main.go
+    push constant 16426 // primitive(42)
+    push constant 8192  // 0x2000 = emptylist
+    cons
+    cons
+    call eval.eval
+    write               // expect 0x402a
+
+    push constant 100   // pointer to ENV, set in main.go
+    push constant 24578 // symbol(2) representing 'x', bound to primitive(7) in ENV
+    push constant 8192  // 0x2000 = emptylist
+    cons
+    cons
+    call eval.eval
+    write               // expect 0x4007
+
+    push constant 100   // pointer to ENV, set in main.go
+    push constant 24581 // symbol(5) representing '+', bound to builtin(0) in ENV
+    push constant 24578 // symbol(2) representing 'x', bound to primitive(7) in ENV
+    push constant 16419 // primitive(35)
+    push constant 8192  // 0x2000 = emptylist
+    cons
+    cons
+    cons
+    push constant 8192  // 0x2000 = emptylist
+    cons
+    cons
+    call eval.eval
+    write               // expect 0x402a
+
+    push constant 0 // void return
+    return
+
+</pre>
+
+The other missing part is the <i>symbol table</i>. More on that later.
