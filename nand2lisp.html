@@ -227,8 +227,33 @@ The solution for now is to keep a global variable <tt>FREE</tt> in memory. The f
    </table>
 </p>
 
+The <i>cons</i> VM instruction can now be translated like this:
+
+<pre class="prettyprint">
+    @SP
+    AM=M-1
+    D=M
+    @FREE
+    A=M
+    SETCDR
+    @SP
+    A=M-1
+    D=M
+    @FREE
+    A=M
+    SETCAR
+    @FREE
+    D=M
+    M=D+1
+    @SP
+    A=M-1
+    M=D
+</pre>
+
+
 <h2>Eval</h2>
 
+We have all the tools to start building eval.
 Here's a pseudocode version of the evaluation function we are going to build:
 
 <pre class="prettyprint">
@@ -447,4 +472,4 @@ function main
 
 </pre>
 
-The other missing part is the <i>symbol table</i>, storing string->symbol lookups. More on that later.
+The other missing part is the <i>symbol table</i>, storing string->symbol lookups. More on that once we get to the parser.
