@@ -21,27 +21,7 @@ and went on to get a translation of Peter Norvig's
 running on the nand2tetris computer.
 I left the project there to explore the wonderful world of Lisp more.
 Now it is time to come back with all the things I've learned, and build a nand2tetris-style Lisp machine.
-
-<h2>Slightly longer intro</h2>
-
-The nand2tetris book, or <i>The Elements of Computing Systems</i> by Noam Nisan and Shimon Schocken, describes
-multiple levels of a functioning computer.
-I followed it from the configuration of gates to make chips through machine language,
-assembly, a virtual machine and finally the high level language Jack.
-The only real modification to the setup that I ended up making was allowing for the bitshift operation because multiplication felt too slow.
-For this I implemented a
-<a href="https://en.wikipedia.org/wiki/Barrel_shifter">barrel shifter</a>
-circuit, and plugging this in meant extending all the abstracting layers.
-The CPU had to support a new instruction bypassing the ALU, the assembler had to recognize the new instruction, and if I had wanted to I could've exposed this all the way into Jack
-(or its Golang equivalent in my case).
-
-<p>
-The book includes a short postscript with ideas on how to extend the project. 
-One of those is to replace Jack with a Scheme.
-In this series of posts I will take that idea a bit further and build a lisp machine with minimal modifications to the nand2tetris computer architecture and its Hack machine language.
-It assumes familiarity with the book, as if it is just another chapter at the end.
-The aim is to have a Lisp <i>eval</i> loop as close to the metal as possible and understand the benefits of running Lisp as both operating system and application.
-</p>
+In this first post we will go over some ideas on how to modify the Hack computer and build something close to the lispy 'calculator'.
 
 <h2>Computer Architecture and the LISP language</h2>
 
@@ -78,6 +58,8 @@ The alternative would be to extend the bitsize, but that would be a more drastic
 The first 3 bits indicate ISPROCEDURE, ISATOM and ISSYMBOL respectively.
 Their negations are ISEXPRESSION, ISPAIR and ISPRIMITIVE.
 The last two missing combinations I will most likely use to represent special procedures, more on that later.
+Note that the 16-bit numbers representation in Hack gets some features for free that we lose this way without modifying the ALU further, main one being negative numbers as 2's complement.
+In return we get extremely low-level type checking, which I find more interesting to play with.
 
 <p>At this point we have all the setup we need to build Lisp-specific machine instructions.
 What's left is to define them and extend the ALU to recognise these new instructions and execute them without breaking the existing Hack ones.
@@ -114,7 +96,7 @@ Here's the ones I've found I needed to make eval work at the virtual machine lev
 
   <tr><td>SETCAR<td>1111001100001000<td>shorthand for <tt>M=D</tt>, not a new instruction
   <tr><td>SETCDR<td>1010111111000000<td>writes <tt>D</tt> to CDR register
-  <tr><td>MCAR<td>1111110000010000<td>shorthand for <tt>D=M</tt>, not a new instruction
+  <tr><td>MCAR<td>1111110000010000<td>shorthand for <tt>D=M</tt>, not a new instruction. Maybe when we support typechecking.
   <tr><td>MCDR<td>1000011111010000<td>writes value of CDR register into <tt>D</tt>
   <tr><td>EQLM<td>1000010111010000<td>sets <tt>D</tt> to <tt>0xffff</tt> if <tt>M == D</tt>, otherwise <tt>0x0000</tt>
   <tr><td>ISSYMB<td>1000001011010000<td>checks tags of <tt>M</tt>, setting <tt>D</tt> to true or false the same way as <tt>EQLM</tt>
@@ -432,12 +414,11 @@ function plus
 <h2>Compiler</h2>
 
 The Lisp compiler is mainly a parser that can read s-expressions, then writes VM instructions writing the parsed expressions into starting memory.
-Currently unimplemented, I write them into memory by hand right now. 
-So instead, here is VM level main function showing different types set into memory, evaluated and printed.
+The actual environment is still hardcoded in a separate VM-file and loaded during init, but the main function below is now generated from a lisp file.
 
 <pre class="prettyprint">
 function main
-    push constant 100   // pointer to ENV, set in main.go
+    push constant 100   // pointer to ENV, set in sys.vm
     push constant 16426 // primitive(42)
     push constant 8192  // 0x2000 = emptylist
     cons
@@ -445,7 +426,7 @@ function main
     call eval.eval
     write               // expect 0x402a
 
-    push constant 100   // pointer to ENV, set in main.go
+    push constant 100   // pointer to ENV, set in sys.vm
     push constant 24578 // symbol(2) representing 'x', bound to primitive(7) in ENV
     push constant 8192  // 0x2000 = emptylist
     cons
@@ -453,7 +434,7 @@ function main
     call eval.eval
     write               // expect 0x4007
 
-    push constant 100   // pointer to ENV, set in main.go
+    push constant 100   // pointer to ENV, set in sys.vm
     push constant 24581 // symbol(5) representing '+', bound to builtin(0) in ENV
     push constant 24578 // symbol(2) representing 'x', bound to primitive(7) in ENV
     push constant 16419 // primitive(35)
@@ -472,4 +453,31 @@ function main
 
 </pre>
 
-The other missing part is the <i>symbol table</i>, storing string->symbol lookups. More on that once we get to the parser.
+The compiler uses a <i>symbol table</i>, storing string->symbol lookups.
+It simply keeps a counter and adds a key-value pair when it sees a symbol it has never seen before.
+I've added a few initial symbols by hand; this table will become more useful once we implement <i>define</i>.
+
+<h2>Background and what's next</h2>
+
+The nand2tetris book, or <i>The Elements of Computing Systems</i> by Noam Nisan and Shimon Schocken, describes
+multiple levels of a functioning computer.
+I followed it from the configuration of gates to make chips through machine language,
+assembly, a virtual machine and finally the high level language Jack.
+The only real modification to the setup that I ended up making was allowing for the bitshift operation because multiplication felt too slow.
+For this I implemented a
+<a href="https://en.wikipedia.org/wiki/Barrel_shifter">barrel shifter</a>
+circuit, and plugging this in meant extending all the abstracting layers.
+The CPU had to support a new instruction bypassing the ALU, the assembler had to recognize the new instruction, and if I had wanted to I could've exposed this all the way into Jack
+(or its Golang equivalent in my case).
+
+<p>
+The book includes a short postscript with ideas on how to extend the project. 
+One of those is to replace Jack with a Scheme.
+In this series of posts I will take that idea a bit further and build a lisp machine with minimal modifications to the nand2tetris computer architecture and its Hack machine language.
+It assumes familiarity with the book, as if it is just another chapter at the end.
+The aim is to have a Lisp <i>eval</i> loop as close to the metal as possible and understand the benefits of running Lisp as both operating system and application.
+</p>
+
+<p>
+Next time we will implement some special procedures like <i>if</i> that do not necessarily evaluate all their arguments, properly switch between those and builtin procedures, and
+add type errors on the chip level.
