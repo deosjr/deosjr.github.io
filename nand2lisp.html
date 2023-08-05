@@ -35,7 +35,7 @@ This image is based on the Hack memory (additions in red):
 
 <p>
 <table>
-<tr><td>&nbsp; <tt>in (16)</tt> &#10145;<td rowspan="3">
+<tr><td>&nbsp; <tt>&nbsp;&nbsp;&nbsp;&nbsp;in (16)</tt> &#10145;<td rowspan="3">
 <table border=1 cellspacing=1 cellpadding=5>
 <tr style="background-color:#EEEEEE"><td align=center><tt><b>Data Memory</b>
 <table border=1 cellspacing=1 cellpadding=5>
@@ -44,7 +44,7 @@ This image is based on the Hack memory (additions in red):
 <tr style="background-color:#FFFFFF"><td align=center>Keyboard <br> memory map
 </table>
 </table><td>&#10145;&nbsp;<tt>car out (16)</tt>
-<tr><td><tt>out (16)</tt> &#10145;<td>&#10145;&nbsp;<tt><b style="color:red">cdr out (16)</b></tt>
+<tr><td><tt>address (16)</tt> &#10145;<td>&#10145;&nbsp;<tt><b style="color:red">cdr out (16)</b></tt>
 </table>
 
 <p> This change makes addresses not just pointers into a flat list, but pointers into a list of cons cells (or pairs).
