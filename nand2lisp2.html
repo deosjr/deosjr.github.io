@@ -9,11 +9,269 @@
 <h2>V2: Full Lispy calculator</h2>
 
 To complete the functionality of the lispy calculator, we will need a few special forms and builtins.
+The result will be a <tt>sys.vm</tt> file that sets up the initial lisp environment so it knows where these are stored in compiled memory,
+briefly hinted at in the <tt>main.vm</tt> file previously.
+It will look something like this:
+
+<pre class="prettyprint">
+// Two more functions are considered part of sys
+// but their implementation is given directly in 
+// the translator, in assembly code
+// These are call and return
+
+function init
+    // building the initial environment
+    push constant 24576     // symbol(0)
+    special 0               // special(if)
+    cons
+    push constant 24577     // symbol(1)
+    special 1               // special(define)
+    cons
+    push constant 24578     // symbol(2)
+    push label builtin.begin
+    builtin                 // builtin(begin)
+    cons
+    push constant 24579     // symbol(3)
+    push label builtin.add
+    builtin                 // builtin(add)
+    cons
+    push constant 24580     // symbol(4)
+    push label builtin.sub
+    builtin                 // builtin(sub)
+    cons
+    push constant 24581     // symbol(5)
+    push label builtin.gt
+    builtin                 // builtin(gt)
+    cons
+    push constant 8192      // 0x2000 = emptylist
+    cons
+    cons
+    cons
+    cons
+    cons
+    cons
+    pop environment
+    push constant 0         // each func HAS to take one arg!
+    call main.main
+    goto end
+</pre>
+
+New here are the <tt>special</tt>, <tt>builtin</tt> and <tt>push label</tt> vm-level instructions.
+These instructions are needed because the type prefix of our procedures goes beyond the 15-bit limit of constants we can push at a time;
+a constraint we inherited from the Hack VM implementation.
+They are purely syntactic sugar. Arguably <i>symbol</i> here could also benefit from that.
+There is also the new <i>special</i> type, which takes prefix 110 in our 3-bit type system.
+This gives us all we need in order to support our missing lisp forms like <tt>if</tt> and <tt>define</tt>.
 
 <h2>Jumping around in memory</h2>
 
+So how does this work? Remember previously we let our call to the builtin + function be a hardcoded part of eval:
+
+<pre class="prettyprint">
+// actually call the function stored in local 1
+label call
+    // TODO
+    call eval.plus
+    return
+</pre>
+
+We instead want to be able to map symbols to builtin vm functions more generally, and the env from <tt>sys.vm</tt> sets us up for that.
+The eval function can be extended so it does a lookup by builtin symbol, but in order to know where to jump to we will need to know the start of the builtin function after compilation.
+This is what the <tt>push label</tt> instruction provides.
+
+<pre class="prettyprint">
+    push constant 24579     // symbol(3)
+    push label builtin.add
+    builtin                 // builtin(add)
+    cons
+</pre>
+
+The above snippet creates a cons cell with symbol(3) as the car or key, and the address of the start of the builtin add function as its cdr or value, prefixed with the builtin type prefix 101.
+<p>
+Here is one of the new vm-level instructions in assembly. The rest are similarly simple.
+
+<pre class="prettyprint">
+// assembly level translation of vm instruction 'builtin'
+// 0x7fff + 0x2001 = 0xa000, or the 101 prefix we are after
+// NOTE: since we use OR, if we try to create a builtin larger than 0x1fff,
+// this wil fail in unexpected ways!
+// for now this is acceptable as we won't have that many, and it eliminates a otherwise-needed mask
+@0x7fff
+D=A
+@0x2001
+D=D+A
+@SP
+A=M-1
+M=D|M
+</pre>
+
+Now we are ready to modify <tt>eval.vm</tt>. 
+
+<pre class="prettyprint">
+// actually call the function stored in local 1
+label call
+    push local 1
+    call-builtin            // new!
+    return
+</pre>
+
+Once we reach call, we simply mask off the type prefix of our argument and perform a SYSCALL, like so:
+
+<pre class="prettyprint">
+// assembly level translation of vm instruction 'call-builtin'
+// choice of registers for FUNC and RET mimics SYSCALL implementation
+@SP
+AM=M-1
+D=M
+@0x1fff
+D=D&A                       // mask off first three bits (TODO, could check them first)
+@R13                        // FUNC
+M=D
+@RETURNLABEL                // gensymmed label
+D=A
+@R15                        // RET
+M=D
+@SYSCALL
+0;JMP
+(RETURNLABEL)
+</pre>
+
+Apart from the unmask of label, this is equivalent to how we call any other function.
+The main reason we added <tt>call-builtin</tt> is that the default <tt>call</tt> takes a label argument, which is now a runtime variable.
+This lets us define builtin functions and modify them without having to count assembly output lines to jump to them; very useful!
+Here is the lisp keyword <tt>begin</tt> as a builtin vm-level function:
+
+<pre class="prettyprint">
+function begin
+label beginloop
+    push argument
+    cdr
+    is-emptylist
+    if-goto beginend
+    push argument
+    cdr
+    pop argument
+    goto beginloop
+label beginend
+    push argument
+    car
+    return
+</pre>
+
+The <tt>begin</tt> function evaluates each argument then returns the last. Crucially, this definition of <tt>begin</tt> works without any calls to <tt>eval</tt> because in LISP, arguments are evaluated before function application!
+We already implemented this in the <tt>evalprocedure</tt> part of <tt>eval</tt>.
+Which is a nice seque into special builtins, of which there are very few.
+They are builtin LISP functions that can only work properly if they do <i>not</i> evaluate their arguments first.
+Therefore they must be treated different, and deserve a proper subtype of procedure for eval to handle.
+
+<h2>Special builtins</h2>
+
+We start by modifying <tt>eval.vm</tt> as follows:
+
+<pre class="prettyprint">
+label evalprocedure
+    push local 1
+    is-special              // new!
+    if-goto evalspecial     // new!
+label evalargs
+    ...
+</pre>
+
+The <tt>is-special</tt> instruction is implemented exactly like its friends <tt>is-symbol</tt> etc before it.
+This next bit is going to be very similar to <tt>call-builtin</tt>, but instead of using syscall we write an explicit if/else switch.
+There are only a handful of special builtins, so this is fine.
+We only support <tt>if</tt> and <tt>define</tt> for now but the rest can be added in the same way.
+
+<pre class="prettyprint">
+label evalspecial
+    // remove mask
+    push local 1
+    push constant 8191      // 0x1fff
+    and
+    pop local 1
+    push local 1
+    push constant 0
+    eq
+    if-goto evalif
+    goto evaldefine         // yes, this means all specials except 0 are 'define' for now..
+</pre>
+
+As you can see, the base case is define instead of error because I am lazy :)
+<p>
+Next we are going to look a bit closer at <tt>if</tt> and <tt>define</tt>.
+
 <h2>If</h2>
+
+<pre class="prettyprint">
+label evalif
+    push argument
+    car                     // env on the stack
+    push local 0
+    cdr
+    car                     // test
+    push constant 8192      // 0x2000 = emptylist
+    cons
+    cons
+    call eval.eval
+    push constant 0
+    equal
+    if-goto evalalt
+// label evalconseq
+    push argument
+    car                     // env on the stack
+    push local 0
+    cdr
+    cdr
+    car                     // conseq
+    push constant 8192      // 0x2000 = emptylist
+    cons
+    cons
+    call eval.eval
+    return
+label evalalt
+    push argument
+    car                     // env on the stack
+    push local 0
+    cdr
+    cdr
+    cdr
+    car                     // alt
+    push constant 8192      // 0x2000 = emptylist
+    cons
+    cons
+    call eval.eval
+    return
+</pre>
 
 <h2>Define</h2>
 
+<pre class="prettyprint">
+label evaldefine
+    // TODO: this just adds, doesnt check if already exists in env
+    push local 0
+    cdr 
+    car                     // symbol
+    // TODO: if not symbol, error!
+    push argument
+    car                     // env on the stack
+    push local 0
+    cdr
+    cdr
+    car                     // exp
+    push constant 8192      // 0x2000 = emptylist
+    cons
+    cons
+    call eval.eval
+    cons                    // (symbol . (eval exp))
+    push environment
+    cons
+    // TODO: we need to repoint for any stored pointers
+    // OR do we? Might happen automagically in sys.return!
+    pop environment         // cons onto existing env
+    push constant 0
+    return
+</pre>
+
 <h2>A note on type errors</h2>
+
+TODO
