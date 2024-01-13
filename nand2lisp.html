@@ -59,12 +59,13 @@ The alternative would be to extend the bitsize, but that would be a more drastic
 <table border=1 cellspacing=0 cellpadding=3>
   <tr style="background-color:#EEEEEE"><th>Prefix<th width="23%">Type<th>Example
 
-  <tr><td align=center>000<td>Pair<td><tt>(+ x 3)</tt>
+  <tr><td align=center>000<td>Pair<td><tt>(+ . (x . 3))</tt>
   <tr><td align=center>001<td>Empty list<td><tt>()</tt>
   <tr><td align=center>010<td>Primitive<td><tt>42</tt>
   <tr><td align=center>011<td>Symbol<td><tt>x</tt>
-  <tr><td align=center>100<td>Procedure<td><tt>func<tt>
   <tr><td align=center>101<td>Builtin<td><tt>+</tt>
+  <tr><td align=center>111<td>Special builtin<td><tt>lambda<tt>
+  <tr><td align=center>100<td>Userdefined<td><tt>func<tt>
 
    </table>
 </p>
@@ -118,7 +119,7 @@ Here's the ones I've found I needed to make eval work at the virtual machine lev
   <tr><td>EQLM<td>1000010111010000<td>sets <tt>D</tt> to <tt>0xffff</tt> if <tt>M == D</tt>, otherwise <tt>0x0000</tt>
   <tr><td>ISSYMB<td>1000001011010000<td>checks tags of <tt>M</tt>, setting <tt>D</tt> to true or false the same way as <tt>EQLM</tt>
   <tr><td>ISPRIM<td>1000001010010000<td>similar but checking different prefix
-  <tr><td>ISPROC<td>1000001101010000<td>for now, checks 101 prefix (so actually more ISBUILTINPROC).
+  <tr><td>ISPROC<td>1000001101010000<td>checks first bit set to 1
   <tr><td>ISEMPTY<td>1000001001010000<td>all 4 of these reuse the same gates; prefix can be found in the instruction <tt>b[7:9]</tt>
   <tr><td>EMPTYCDR<td>1000000001010000<td>like the above but checks the CDR register instead
    </table>
@@ -226,7 +227,7 @@ The solution for now is to keep a global variable <tt>FREE</tt> in memory. The f
    </table>
 </p>
 
-The <i>cons</i> VM instruction can now be translated like this:
+The <tt>cons</tt> VM instruction can now be translated like this:
 
 <pre class="prettyprint">
     @SP
@@ -400,7 +401,7 @@ label consloop
 // actually call the function stored in local 1
 label call
     // TODO
-    call eval.plus
+    call eval.add
     return
 </pre>
 
@@ -408,12 +409,12 @@ For this first version we will leave this at a hardcoded goto, but the procedure
 or a special one like <tt>lambda</tt>, <tt>define</tt> or <tt>if</tt>, each codifying different jumps around instruction memory.
 
 <p>
-The actual implementation of <tt>plus</tt> is pretty straightforward, but we have to remember to mask the result to keep the type tag intact.
+The actual implementation of <tt>add</tt> is pretty straightforward, but we have to remember to mask the result to keep the type tag intact.
 Probably a lot faster if hand-rolled in assembly, but then we'd have to think about how to jump to it correctly.
 
 <pre class="prettyprint">
 // TODO: make variadic, just have to check emptylist in a loop
-function plus
+function add
     push argument
     car
     push argument
@@ -441,7 +442,7 @@ function main
     cons
     cons
     call eval.eval
-    write               // expect 0x402a
+    write               // expect 0x402a, the number 42
 
     push constant 100   // pointer to ENV, set in sys.vm
     push constant 24578 // symbol(2) representing 'x', bound to primitive(7) in ENV
@@ -449,7 +450,7 @@ function main
     cons
     cons
     call eval.eval
-    write               // expect 0x4007
+    write               // expect 0x4007, the number 7
 
     push constant 100   // pointer to ENV, set in sys.vm
     push constant 24581 // symbol(5) representing '+', bound to builtin(0) in ENV
@@ -462,8 +463,8 @@ function main
     push constant 8192  // 0x2000 = emptylist
     cons
     cons
-    call eval.eval
-    write               // expect 0x402a
+    call eval.eval      // evaluate (+ x 35)
+    write               // expect 0x402a, the number 42
 
     push constant 0     // void return
     return
@@ -472,7 +473,7 @@ function main
 
 The compiler uses a <i>symbol table</i>, storing string->symbol lookups.
 It simply keeps a counter and adds a key-value pair when it sees a symbol it has never seen before.
-I've added a few initial symbols by hand; this table will become more useful once we implement <i>define</i>.
+I've added a few initial symbols by hand; this table will become more useful once we implement <tt>define</tt>.
 
 <h2>Background and what's next</h2>
 
@@ -492,9 +493,9 @@ The book includes a short postscript with ideas on how to extend the project.
 One of those is to replace Jack with a Scheme.
 In this series of posts I will take that idea a bit further and build a lisp machine with minimal modifications to the nand2tetris computer architecture and its Hack machine language.
 It assumes familiarity with the book, as if it is just another chapter at the end.
-The aim is to have a Lisp <i>eval</i> loop as close to the metal as possible and understand the benefits of running Lisp as both operating system and application.
+The aim is to have a Lisp <tt>eval</tt> loop as close to the metal as possible and understand the benefits of running Lisp as both operating system and application.
 </p>
 
 <p>
-Next time we will implement some special procedures like <i>if</i> that do not necessarily evaluate all their arguments, properly switch between those and builtin procedures, and
+Next time we will implement some special procedures like <tt>if</tt> that do not necessarily evaluate all their arguments, properly switch between those and builtin procedures, and
 add type errors on the chip level.

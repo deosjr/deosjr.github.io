@@ -61,7 +61,7 @@ These instructions are needed because the type prefix of our procedures goes bey
 a constraint we inherited from the Hack VM implementation.
 They are purely syntactic sugar. Arguably <i>symbol</i> here could also benefit from that.
 There is also the new <i>special</i> type, which takes prefix 110 in our 3-bit type system.
-This gives us all we need in order to support our missing lisp forms like <tt>if</tt> and <tt>define</tt>.
+This gives us all we need in order to support our missing lisp forms <tt>if</tt>, <tt>define</tt>, <tt>set!</tt> and <tt>lambda</tt>.
 
 <h2>Jumping around in memory</h2>
 
@@ -71,7 +71,7 @@ So how does this work? Remember previously we let our call to the builtin + func
 // actually call the function stored in local 1
 label call
     // TODO
-    call eval.plus
+    call eval.add
     return
 </pre>
 
@@ -95,14 +95,14 @@ Here is one of the new vm-level instructions in assembly. The rest are similarly
 // 0x7fff + 0x2001 = 0xa000, or the 101 prefix we are after
 // NOTE: since we use OR, if we try to create a builtin larger than 0x1fff,
 // this wil fail in unexpected ways!
-// for now this is acceptable as we won't have that many, and it eliminates a otherwise-needed mask
-@0x7fff
-D=A
-@0x2001
-D=D+A
-@SP
-A=M-1
-M=D|M
+// for now this is acceptable as we won't have that many and it eliminates an otherwise-needed mask
+    @0x7fff
+    D=A
+    @0x2001
+    D=D+A
+    @SP
+    A=M-1
+    M=D|M
 </pre>
 
 Now we are ready to modify <tt>eval.vm</tt>. 
@@ -120,20 +120,20 @@ Once we reach call, we simply mask off the type prefix of our argument and perfo
 <pre class="prettyprint">
 // assembly level translation of vm instruction 'call-builtin'
 // choice of registers for FUNC and RET mimics SYSCALL implementation
-@SP
-AM=M-1
-D=M
-@0x1fff
-D=D&A                       // mask off first three bits (TODO, could check them first)
-@R13                        // FUNC
-M=D
-@RETURNLABEL                // gensymmed label
-D=A
-@R15                        // RET
-M=D
-@SYSCALL
-0;JMP
-(RETURNLABEL)
+    @SP
+    AM=M-1
+    D=M
+    @0x1fff
+    D=D&A                   // mask off first three bits (TODO, could check them first)
+    @R13                    // FUNC
+    M=D
+    @RETURNLABEL            // gensymmed label
+    D=A
+    @R15                    // RET
+    M=D
+    @SYSCALL
+    0;JMP
+    (RETURNLABEL)
 </pre>
 
 Apart from the unmask of label, this is equivalent to how we call any other function.
@@ -142,6 +142,7 @@ This lets us define builtin functions and modify them without having to count as
 Here is the lisp keyword <tt>begin</tt> as a builtin vm-level function:
 
 <pre class="prettyprint">
+// (begin expr ... )
 function begin
 label beginloop
     push argument
@@ -180,7 +181,6 @@ label evalargs
 The <tt>is-special</tt> instruction is implemented exactly like its friends <tt>is-symbol</tt> etc before it.
 This next bit is going to be very similar to <tt>call-builtin</tt>, but instead of using syscall we write an explicit if/else switch.
 There are only a handful of special builtins, so this is fine.
-We only support <tt>if</tt> and <tt>define</tt> for now but the rest can be added in the same way.
 
 <pre class="prettyprint">
 label evalspecial
@@ -193,16 +193,43 @@ label evalspecial
     push constant 0
     eq
     if-goto evalif
-    goto evaldefine         // yes, this means all specials except 0 are 'define' for now..
+    push local 1
+    push constant 1
+    eq
+    if-goto evaldefine
+    push local 1
+    push constant 2
+    eq
+    // ... etc for the other forms
+    if-goto evalquote
+    // unknown builtin, return err
+    goto sys.end
 </pre>
 
-As you can see, the base case is define instead of error because I am lazy :)
-<p>
-Next we are going to look a bit closer at <tt>if</tt> and <tt>define</tt>.
+The implementation of <tt>quote</tt> is very simple so let's start with that.
+It returns the first argument, unevaluated!
+
+<pre class="prettyprint">
+// (quote arg)
+label evalquote
+    push local 0
+    cdr
+    car
+    return
+</pre>
+
+The other forms are a bit more complicated than that.
+Next we go over the implementation of each of them, starting by adding to the <tt>eval</tt> function and changing our program from there
+until we have a full (if barebones) LISP implementation.
 
 <h2>If</h2>
 
+The <tt>if</tt> expression takes three arguments, of which the last one is optional.
+They are <i>test, conseq</i> and <i>alt</i>.
+We start by evaluating only <i>test</i>, and depending on the outcome will evaluate either <i>conseq</i> or <i>alt</i>, but not both.
+
 <pre class="prettyprint">
+// (if test conseq alt)
 label evalif
     push argument
     car                     // env on the stack
@@ -229,6 +256,7 @@ label evalif
     call eval.eval
     return
 label evalalt
+    // TODO: if no alt, return 'false'
     push argument
     car                     // env on the stack
     push local 0
@@ -243,13 +271,62 @@ label evalalt
     return
 </pre>
 
+This was a bit more work than <tt>quote</tt>, but still possible with the instruction set we have now.
+For the next special forms we will have to extend our implementation slightly.
+
 <h2>Define</h2>
 
+The <tt>define</tt> expression takes two arguments, essentially a key and a value to store in the environment.
+We expect the key to be a symbol and only evaluate the second argument to obtain the value to store.
+Modifying the environment is new: we need to make sure the environment stays enriched outside of the scope of the current call to <tt>eval</tt>.
+We have defined the semantics of our stack-based vm such that by default the environment of the caller of a function is restored after returning from that function.
+This means you can not modify the environment at all.
+Define is the main way to break that assumption, so we will have to make some changes.
+<p>
+The environment is implemented as an assoc list on the heap.
+Adding to the environment is easy: we can just cons an extra pair on top.
+This gives us a new pointer to an extended list, which is the new environment.
+The problem is that we want to change this environment for everyone, so even captured references to it need to be changed (more on those later).
+The idea is to modify the contents of the pointer on the heap, without losing any data.
+If we duplicate the original environment, meaning we obtain a new reference to the same data, we can cons onto that to obtain our new env.
+Lastly we copy the car and cdr of the new env into the address pointed at by the original env.
+This modifies the contents of the pointer so that all references to the original env now point to the enhanced one.
+We implement this functionality as a new vm-level instruction: <tt>copy-pointer</tt>:
+
 <pre class="prettyprint">
+    @SP
+    AM=M-1
+    D=M
+    @R7                     // dest
+    M=D
+    @SP
+    AM=M-1
+    D=M
+    @R8                     // src
+    AM=D
+    MCDR
+    @R7
+    A=M
+    SETCDR
+    @R8
+    A=M
+    MCAR
+    @R7
+    A=M
+    SETCAR
+</pre>
+
+We are now ready to implement <tt>define</tt>.
+Note that this implementation leaves a duplicate unused cons cell on the heap; 
+at some point when garbage collection is implemented this should be cleaned up automatically.
+
+<pre class="prettyprint">
+// (define symbol body)
 label evaldefine
     // TODO: this just adds, doesnt check if already exists in env
+    // meaning currently the assoc list could have duplicate keys
     push local 0
-    cdr 
+    cdr
     car                     // symbol
     // TODO: if not symbol, error!
     push argument
@@ -262,15 +339,127 @@ label evaldefine
     cons
     cons
     call eval.eval
-    cons                    // (symbol . (eval exp))
+    cons                    // (symbol . (eval exp)) = entry
+    // we need to modify the env pointer, because ENV will be restored
+    // to whatever the caller's ENV was
+    // first we duplicate existing env pointer on heap
+    // then we repoint original pointer to ( entry . duplicatepointer )
     push environment
-    cons
-    // TODO: we need to repoint for any stored pointers
-    // OR do we? Might happen automagically in sys.return!
-    pop environment         // cons onto existing env
+    car
+    push environment
+    cdr
+    cons                    // allocate another cons cell to current env
+    cons                    // ( entry . duplicatepointer )
+    // TODO: difference between caller ENV and argument env ?
+    push environment        // original env
+    copy-pointer
+    // cleanup duplicate cons cell on the heap should happen due to GC at some point
     push constant 0
     return
 </pre>
+
+<h2>Lambda</h2>
+
+The hard part when implementing <tt>lambda</tt> is not the immediate eval, but what to do when the result is evaluated again.
+
+<pre class="prettyprint">
+label evallambda
+    // (lambda (params ...) body)
+    // assumption: params is a list of symbols
+    // TODO: typecheck param arg and check length of args=2
+    push environment
+    push local 0
+    cons
+    userdefined
+    return
+</pre>
+
+<pre class="prettyprint">
+function apply
+    push constant 0     // prepare local 0 = f
+    push constant 0     // prepare local 1 = f.params
+    push constant 0     // prepare local 2 = args
+    push constant 0     // prepare local 3 = numargs
+    push argument
+    car
+    is-builtin
+    if-goto callbuiltin
+// label userdefined
+    // remove mask
+    push argument
+    car
+    push constant 8191  // 0x1fff
+    and
+    pop local 0
+    // zip f.params with args
+    push local 0
+    cdr
+    car                 // f.params
+    pop local 1
+    push argument
+    cdr
+    car                 // args
+    pop local 2
+label applyrec
+    // TODO: check if len(params) == len(args)
+    push local 1
+    is-emptylist
+    if-goto endapplyrec
+    push local 3
+    push constant 1
+    add
+    pop local 3         // numargs++
+    push local 1
+    car
+    push local 2
+    car
+    cons
+    push local 1
+    cdr
+    pop local 1
+    push local 2
+    cdr
+    pop local 2
+    goto applyrec
+label endapplyrec
+    // cons on top of f.env -> newenv
+    push local 0
+    car                 // f.env
+label applyconsloop
+    push constant 0
+    push local 3
+    eq
+    if-goto applyend
+    cons
+    push local 3
+    push constant 1
+    sub
+    pop local 3
+    goto applyconsloop
+label applyend
+    // call eval.eval of newenv and f.body
+    push local 0
+    cdr
+    cdr
+    car                 // f.body
+    push constant 8192  // 0x2000 = emptylist
+    cons
+    cons
+    call eval.eval
+    return
+label callbuiltin
+    push argument
+    cdr
+    car
+    push argument
+    car
+    call-builtin
+    return
+</pre>
+
+<h2>Set!</h2>
+
+TODO: set! is define but with replace
 
 <h2>A note on type errors</h2>
 
