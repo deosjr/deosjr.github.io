@@ -374,6 +374,19 @@ label evallambda
     return
 </pre>
 
+Following Norvig's Lispy implementation, we store a user-defined procedure as a triple of
+<i>env, params</i> and <i>body</i>.
+The parameters are assumed to be sent as a list of symbols, the body is one or more expressions.
+What we want to store matches almost exactly what is passed to the <tt>lambda</tt> expression;
+the only thing missing is to prepend the environment in which it is being evaluated.
+This triple is then tagged with the type prefix for user-defined procedures using <tt>userdefined</tt>.
+<p>
+The big change is in the code for evaluating procedure application.
+Previously this was a relatively small part of <tt>eval</tt>: </br>
+Apart from special forms (which we are discussing here), we only supported calls to builtin procedures with some sort of goto.
+What was missing is application of user-defined procedures.
+We'll extract this part of <tt>eval</tt> into a builtin <tt>apply</tt> function, which we then get for free.
+
 <pre class="prettyprint">
 function apply
     push constant 0     // prepare local 0 = f
@@ -384,6 +397,11 @@ function apply
     car
     is-builtin
     if-goto callbuiltin
+</pre>
+
+Apply starts with a switch: are we evaluating a builtin or user-defined procedure?
+
+<pre class="prettyprint">
 // label userdefined
     // remove mask
     push argument
@@ -400,6 +418,13 @@ function apply
     cdr
     car                 // args
     pop local 2
+</pre>
+
+User-defined procedures are a triple that we need to unpack.
+To apply, we first zip the parameters (list of symbols) and the arguments (list of expressions)
+so that we obtain a list of pairs, an assoc list just like the environment:
+
+<pre class="prettyprint">
 label applyrec
     // TODO: check if len(params) == len(args)
     push local 1
@@ -421,6 +446,13 @@ label applyrec
     cdr
     pop local 2
     goto applyrec
+</pre>
+
+This is then added to the env stored in the procedure when it was created using <tt>lambda</tt>.
+The new extended environment binds the parameters to the values that the function was called with.
+What's left is to evaluate the body of the procedure in this new environment, like so:
+
+<pre class="prettyprint">
 label endapplyrec
     // cons on top of f.env -> newenv
     push local 0
@@ -447,6 +479,11 @@ label applyend
     cons
     call eval.eval
     return
+</pre>
+
+And finally, here is the evaluation of builtin, mostly unchanged:
+
+<pre class="prettyprint">
 label callbuiltin
     push argument
     cdr
@@ -463,4 +500,8 @@ TODO: set! is define but with replace
 
 <h2>A note on type errors</h2>
 
-TODO
+So far we haven't really handled errors.
+The best we have done so far is to quit the program early if a type error was detected at vm-level.
+But our types are represented at a level where even the ALU should be able to output a signal to indicate type errors,
+for example when trying to compare two values using <tt>EQL</tt> that have different types, 
+or when calling <tt>MCAR</tt> on something that is not a pair.
