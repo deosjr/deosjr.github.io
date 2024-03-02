@@ -19,18 +19,19 @@ After that I dove into
 and went on to get a translation of Peter Norvig's
 <a href="https://norvig.com/lispy.html">lispy</a>
 running on the nand2tetris computer.
-I left the project there to explore the wonderful world of Lisp more.
+I left the project there to explore the wonderful world of Lisp further.
 Now it is time to come back with all the things I've learned, and build a nand2tetris-style Lisp machine.
 In this first post we will go over some ideas on how to modify the Hack computer and build something close to the lispy 'calculator'.
 
 <h2>Computer Architecture and the LISP language</h2>
 
-The core data structure in Lisp is the cons cell.
-A lot of the time in evaluating s-expressions will be spent traversing this via the <i>car</i> and <i>cdr</i> commands.
+The core data structure in Lisp is the cons cell, representing a pair of values.
+A lot of the time in evaluating s-expressions will be spent traversing lists via the <i>car</i> and <i>cdr</i> commands.
 The easiest way to represent this close to where the machine language can efficiently execute on it is to add another RAM16K chip next to the main memory in the Hack computer,
 which will be addressed in the same way and at the same time. Each cycle we will fetch data from both RAM chips and feed it into the ALU.
 The first RAM chip will represent the car and the second the cdr in memory.
-We'll implement this using a builtin RAM32K chip, of which the second half will go unused.
+We'll implement this using a builtin RAM32K chip, of which the second half will go unused
+(in fact, only the heap will use the cdr part, since that's where we will allocate cons cells).
 This image is based on the Hack memory (additions in red):
 
 <p>
@@ -48,9 +49,9 @@ This image is based on the Hack memory (additions in red):
 </table>
 
 <p> This change makes addresses not just pointers into a flat list, but pointers into a list of cons cells (or pairs).
-But not everything in Lisp is a pair: we have atoms which can be symbols or primitives such as numbers, and procedures.
-This type information is crucial to handle s-expressions at this low level.
-We can represent this by taking some bits of our 16-bit registers and encode type data in those.
+Not everything in Lisp is a pair though: we have atoms which can be symbols or primitives such as numbers, and we have procedures that can be builtin or user-defined.
+This type information is crucial to handle s-expressions at the lowest level.
+We can take some bits of our 16-bit registers and encode type data for each value in those.
 This changes the Hack platform into a <a href="https://en.wikipedia.org/wiki/Tagged_architecture">tagged architecture</a>.
 We'll use the first 3 bits, leaving us with only 13 to represent data with.
 The alternative would be to extend the bitsize, but that would be a more drastic overall change.
@@ -59,8 +60,8 @@ The alternative would be to extend the bitsize, but that would be a more drastic
 <table border=1 cellspacing=0 cellpadding=3>
   <tr style="background-color:#EEEEEE"><th>Prefix<th width="23%">Type<th>Example
 
-  <tr><td align=center>000<td>Pair<td><tt>(+ . (x . 3))</tt>
-  <tr><td align=center>001<td>Empty list<td><tt>()</tt>
+  <tr><td align=center>000<td>Pair (0x0 is the empty list)<td><tt>()</tt>
+  <tr><td align=center>001<td>Pair<td><tt>(+ . (x . 3))</tt>
   <tr><td align=center>010<td>Primitive<td><tt>42</tt>
   <tr><td align=center>011<td>Symbol<td><tt>x</tt>
   <tr><td align=center>101<td>Builtin<td><tt>+</tt>
@@ -72,15 +73,17 @@ The alternative would be to extend the bitsize, but that would be a more drastic
 
 The first 3 bits indicate ISPROCEDURE, ISATOM and ISSYMBOL respectively.
 Their negations are ISEXPRESSION, ISPAIR and ISPRIMITIVE.
-The last two missing combinations I will most likely use to represent special procedures, more on that later.
 Note that the 16-bit numbers representation in Hack gets some features for free that we lose this way without modifying the ALU further, main one being negative numbers as 2's complement.
 In return we get extremely low-level type checking, which I find more interesting to play with.
 
 <p>One caveat is that we now have to be very careful not to confuse pointers to pairs with pairs themselves, as it all looks the same in memory.
+For example, how would we tell the difference between a pointer to pair, and a cons cell starting with a pair?
 In general, we'll assume that the stack only works with pointers and the heap only contains actual cons cells.
+To make the allocation of a cons cell with empty cdr easier, we represent empty list as <tt>0x0</tt>.
 
-<p>At this point we have all the setup we need to build Lisp-specific machine instructions.
-What's left is to define them and extend the ALU to recognise these new instructions and execute them without breaking the existing Hack ones.
+<p>Using this data representation we can build Lisp-specific machine instructions.
+My approach is to extend the ALU to recognise these new instructions and execute them without breaking the existing Hack ones.
+This way we can reuse most of the nand2tetris infrastructure to test our machine!
 
 <h2>Machine Language</h2>
 
@@ -94,7 +97,7 @@ Here's a refresher on the original Hack instructions and how a 16-bit word maps 
 </table>
 
 <p>
-You can see two bits are completely unused.
+You can see two bits are completely unused, or free.
 We will call them <tt>b[1]</tt> and <tt>b[2]</tt>, or <tt>useALU</tt> and <tt>writeCdrM</tt> respectively.
 The following modifications leave the Hack instructions unaltered, meaning the assembler will also still be valid.
 <ul>
@@ -127,15 +130,17 @@ Here's the ones I've found I needed to make eval work at the virtual machine lev
 
 <h2>Assembler</h2>
 
-The changes to assembler, virtual machine and compiler are not that interesting.
+The changes to assembler, virtual machine and compiler are not that interesting to work out in more detail here.
 Instead let's have a look at a program using these instructions, hand-written in extended Hack assembly.
-In order to build the <tt>eval</tt> function we need one very important component that is not yet reflected in our types: the <i>environment</i>.
+We will build up to the <tt>eval</tt> function, one that can evaluate any s-expression.
+To do so we need one very important component that is not yet reflected in our types: the <i>environment</i>.
 
 <p>
 At its most basic, the environment is a mapping of symbols to s-expressions.
 Norvig's lispy uses a dictionary; in <a href="https://github.com/deosjr/whistle">my own Golang-based Lisp interpreter</a> I do the same thing.
 But we don't have to implement hashmaps: we already have lists! <br>
 We can use <a href="https://en.wikipedia.org/wiki/Association_list">association lists</a>, with the key being a symbol and the value an s-expression.
+However, this will be slow.
 
 <pre class="prettyprint">
 (ASSQ)
@@ -179,8 +184,12 @@ That's pretty compact!
 
 <h2>Virtual Machine</h2>
 
-We could handroll <tt>eval</tt> in much the same way, but at some point using the stack abstraction speeds up the process a lot.
-I've made a few modifications to the Hack virtual machine to better represent a functional language and get a graps for the differences.
+We could write out <tt>eval</tt> in much the same way, but at some point using the stack abstraction speeds up the process a lot.
+I've written all of <tt>eval</tt> in the virtual stack machine first, and only translated it back to assembly later for performance reasons.
+This way it's a lot easier to follow along.
+
+<p>
+I've made a few modifications to the Hack virtual machine to better represent a functional language and get a grasp of the differences.
 First of all, we will do away with local variables and force all functions to take exactly one argument.
 Local vars are not needed because we will use the environment, and since we have list we can pass a variadic amount of args by just passing a list pointer.
 Local variables will make an appearance in <tt>eval</tt> but will refer to the first <tt>n</tt> items on the function's working stack.
