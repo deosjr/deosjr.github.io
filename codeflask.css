@@ -1,0 +1,18 @@
+body {
+    background-color: #ffffff;
+}
+
+#editor {
+  width: 43%;
+  height: 43%;
+  border-radius: 3px;
+  position: absolute;
+}
+
+#output {
+  width: 43%;
+  height: 43%;
+  border-radius: 3px;
+  position: absolute;
+  right: 0;
+}
