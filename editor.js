@@ -18,8 +18,10 @@ const prismGrammarASM = {
     pattern: /\b(JEQ|JNE|JMP|JLE|JGE|JLT|JGT)\b/,
     alias: 'keyword',
   },
-  keyword:
-    /\b(EQLM|MCDR|EMPTYCDR)\b/,
+  builtin: {
+    pattern: /\b(EQLM|MCDR|EMPTYCDR)\b/,
+    alias: 'keyword',
+  },
   hexnum: {
     pattern: /(\@0x[0-9]+)/,
     greedy: true,

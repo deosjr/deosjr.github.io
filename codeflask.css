@@ -4,7 +4,7 @@ body {
 
 #editor {
   width: 43%;
-  height: 43%;
+  height: 80%;
   border-radius: 3px;
   position: absolute;
 }
@@ -18,11 +18,15 @@ body {
 }
 
 .codeflask .token.address {
-    color: red;
+    color: blue;
 }
 
 .codeflask .token.label {
-    color: green;
+    color: red;
+}
+
+.codeflask .token.builtin {
+    color: purple;
 }
 
 .codeflask .token.comment {
@@ -31,4 +35,8 @@ body {
 
 .codeflask .token.operator {
     color: red;
+}
+
+.codeflask .token.number {
+    color: blue;
 }
