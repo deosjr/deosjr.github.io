@@ -1,7 +1,6 @@
 function assemble(tokens) {
     // filter out strings, they are whitespace-only if grammar is correctly defined, and comments
     const t = tokens.filter((e) => typeof (e) === 'object' && e.type !== 'comment');
-    console.log(t);
     // piece back instructions from the grammar
     let assembly = [];
     let c = {};
@@ -26,7 +25,7 @@ function assemble(tokens) {
             case 'hexnum':
                 assembly.push({ n: parseInt(entry.content.slice(3), 16) });
                 return;
-            case 'keyword':
+            case 'builtin':
                 assembly.push({ keyword: entry.content });
                 return;
             case 'symbol':
@@ -84,7 +83,6 @@ function assemble(tokens) {
         }
     });
     assembly = assembly.filter((e) => !('s' in e));
-    const e = JSON.stringify(tokens[0]);
-    return `foobar${e}`;
+    return JSON.stringify(assembly).replace(/},/g, "},</br>");
 }
 export { assemble };

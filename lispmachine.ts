@@ -26,8 +26,6 @@ function assemble(tokens:(string|token)[]):string {
     // filter out strings, they are whitespace-only if grammar is correctly defined, and comments
     const t = tokens.filter((e) => typeof(e) === 'object' && e.type !== 'comment') as Array<token>;
 
-    console.log(t)
-    
     // piece back instructions from the grammar
     let assembly: (ainstruction|cinstruction|label)[] = [];
     let c: any = {};
@@ -52,7 +50,7 @@ function assemble(tokens:(string|token)[]):string {
         case 'hexnum':
             assembly.push({n:parseInt(entry.content.slice(3), 16)} as ainstruction);
             return
-        case 'keyword':
+        case 'builtin':
             assembly.push({keyword:entry.content} as cinstruction);
             return
         case 'symbol':
@@ -108,8 +106,7 @@ function assemble(tokens:(string|token)[]):string {
     })
     assembly = assembly.filter((e) => !('s' in e));
 
-    const e = JSON.stringify(tokens[0]);
-    return `foobar${e}`;
+    return JSON.stringify(assembly).replace(/},/g, "},</br>");
 }
 
 export { assemble };
