@@ -24,7 +24,6 @@ function assemble(tokens) {
                 assembly.push({ n: parseInt(entry.content.slice(1)) });
                 return;
             case 'hexnum':
-                console.log(entry.content);
                 assembly.push({ n: parseInt(entry.content.slice(3), 16) });
                 return;
             case 'keyword':
@@ -72,19 +71,19 @@ function assemble(tokens) {
                 return;
         }
     });
-    console.log(assembly);
     // standard labels
     let labels = {
         'SP': 1, 'FREE': 2, 'ENV': 3, 'ARG': 4, 'R0': 0, 'R1': 1, 'R2': 2, 'R3': 3, 'R4': 4, 'R5': 5, 'R6': 6, 'R7': 7, 'R8': 8, 'R9': 9, 'R10': 10, 'R11': 11, 'R12': 12, 'R13': 13, 'R14': 14, 'R15': 15,
     };
     // labels are guaranteed to start/end with parens because of the grammar regex
     let labelsFound = 0;
-    t.forEach((entry, index) => {
-        if (entry.type === 'label') {
-            labels[entry.content.slice(1, -1)] = index - labelsFound;
+    assembly.forEach((entry, index) => {
+        if ('s' in entry) {
+            labels[entry.s] = index - labelsFound;
             labelsFound++;
         }
     });
+    assembly = assembly.filter((e) => !('s' in e));
     const e = JSON.stringify(tokens[0]);
     return `foobar${e}`;
 }

@@ -93,7 +93,6 @@ function assemble(tokens:(string|token)[]):string {
             return
         }
     })
-    console.log(assembly)
 
     // standard labels
     let labels: { [key: string]: number } = {
@@ -101,12 +100,13 @@ function assemble(tokens:(string|token)[]):string {
     }
     // labels are guaranteed to start/end with parens because of the grammar regex
     let labelsFound = 0;
-    t.forEach((entry, index) => {
-        if (entry.type === 'label') {
-            labels[entry.content.slice(1,-1)]=index-labelsFound
+    assembly.forEach((entry, index) => {
+        if ('s' in entry) {
+            labels[entry.s] = index-labelsFound
             labelsFound++
         }
     })
+    assembly = assembly.filter((e) => !('s' in e));
 
     const e = JSON.stringify(tokens[0]);
     return `foobar${e}`;
