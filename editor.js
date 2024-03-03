@@ -59,39 +59,44 @@ flask.onUpdate( e => {
 window.Prism = window.Prism || {};
 Prism.manual = true;
 
+// 000c fc20 fc20 fc10 000b 85d0 0010 e302 000c fc20 fc20 87d0 6002 e308 001e ea87 000c fc20 8810 001c e305 000c fc20 87d0 000c e308 0000 ea87 001e ea87 001e ea87
 flask.updateCode(`(ASSQ)
-    // assume @R11 = K (key) and @R12 = P (pointer to assoc list)
-    @R12
-    A=M
-    A=M
-    D=M
-    @R11
-    EQLM
-    @ASSQCONTINUE
-    D;JEQ
-    // here K == D !
-    @R12
-    A=M
-    A=M
-    MCDR
-    @0x6002     // I've used this address to write to tape output
-    M=D
-    @END
-    0;JMP
+    // assume @R11 = K (key)
+    // and @R12 = P (pointer to assoc list)
+    @R12
+    A=M
+    A=M
+    D=M
+    @R11
+    EQLM
+    @ASSQCONTINUE
+    D;JEQ
+    // here K == D !
+    @R12
+    A=M
+    A=M
+    MCDR
+    @0x6002     // write to tape output
+    M=D
+    @END
+    0;JMP
 (ASSQCONTINUE)
-    @R12
-    A=M
-    EMPTYCDR
-    @FAILTOFIND
-    D;JNE
-    @R12
-    A=M
-    MCDR
-    @R12
-    M=D
-    @ASSQ
-    0;JMP
+    @R12
+    A=M
+    EMPTYCDR
+    @FAILTOFIND
+    D;JNE
+    @R12
+    A=M
+    MCDR
+    @R12
+    M=D
+    @ASSQ
+    0;JMP
 (FAILTOFIND)
-    @END
-    0;JMP`)
+    @END
+    0;JMP
+(END)
+    @END
+    0;JMP`)
 

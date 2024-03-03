@@ -1,4 +1,163 @@
 function assemble(tokens) {
+    const { labels, statements } = parse(tokens);
+    const program = statements.map((s) => {
+        switch (true) {
+            // @LABEL
+            case 'label' in s:
+                return labels[s.label];
+            // @NUMBER
+            case 'n' in s:
+                return s.n;
+            // LISP INSTRUCTION
+            case 'keyword' in s:
+                return keyword(s.keyword);
+            // C-INSTRUCTION
+            default:
+                return cinstr(s);
+        }
+    });
+    console.log(program.map((x) => x.toString(16).padStart(4, '0')));
+    return JSON.stringify(statements).replace(/},/g, "},</br>");
+}
+function keyword(k) {
+    switch (k) {
+        case "SETCAR": return 0b1111001100001000;
+        case "SETCDR": return 0b1010111111000000;
+        case "EQLM": return 0b1000010111010000;
+        case "MCAR": return 0b1111110000010000;
+        case "MCDR": return 0b1000011111010000;
+        case "ACAR": return 0b1111110000100000;
+        case "ACDR": return 0b1000011111100000;
+        case "ISPROC": return 0b1001000000010000;
+        case "ISSYMB": return 0b1000001011010000;
+        case "ISPRIM": return 0b1000001010010000;
+        case "ISBUILTIN": return 0b1000001101010000;
+        case "ISSPECIAL": return 0b1000001111010000;
+        case "ISUSRDEF": return 0b1000001100010000;
+        case "ISEMPTY": return 0b1000110000010000;
+        case "EMPTYCDR": return 0b1000100000010000;
+        case "USRDEFCDR": return 0b1000000100010000;
+    }
+    return -1;
+}
+function cinstr(c) {
+    let instr = 0b1110000000000000;
+    switch (c.jump) {
+        case 'JGT':
+            instr |= 0b001;
+            break;
+        case 'JEQ':
+            instr |= 0b010;
+            break;
+        case 'JGE':
+            instr |= 0b011;
+            break;
+        case 'JLT':
+            instr |= 0b100;
+            break;
+        case 'JNE':
+            instr |= 0b101;
+            break;
+        case 'JLE':
+            instr |= 0b110;
+            break;
+        case 'JMP':
+            instr |= 0b111;
+            break;
+    }
+    if (c.dest && c.dest.includes('A'))
+        instr |= 0b100000;
+    if (c.dest && c.dest.includes('D'))
+        instr |= 0b010000;
+    if (c.dest && c.dest.includes('M'))
+        instr |= 0b001000;
+    switch (c.comp.join('')) {
+        case '0':
+            instr |= 0b0000101010000000;
+            break;
+        case '1':
+            instr |= 0b0000111111000000;
+            break;
+        case 'A':
+            instr |= 0b0000110000000000;
+            break;
+        case 'D':
+            instr |= 0b0000001100000000;
+            break;
+        case 'M':
+            instr |= 0b0001110000000000;
+            break;
+        case '-1':
+            instr |= 0b0000111010000000;
+            break;
+        case '-A':
+            instr |= 0b0000110011000000;
+            break;
+        case '-D':
+            instr |= 0b0000001111000000;
+            break;
+        case '-M':
+            instr |= 0b0001110011000000;
+            break;
+        case '!A':
+            instr |= 0b0000110001000000;
+            break;
+        case '!D':
+            instr |= 0b0000001101000000;
+            break;
+        case '!M':
+            instr |= 0b0001110001000000;
+            break;
+        case 'A+1':
+            instr |= 0b0000110111000000;
+            break;
+        case 'M+1':
+            instr |= 0b0001110111000000;
+            break;
+        case 'D+1':
+            instr |= 0b0000011111000000;
+            break;
+        case 'D+A':
+            instr |= 0b0000000010000000;
+            break;
+        case 'D+M':
+            instr |= 0b0001000010000000;
+            break;
+        case 'A-1':
+            instr |= 0b0000110010000000;
+            break;
+        case 'A-D':
+            instr |= 0b0000000111000000;
+            break;
+        case 'M-1':
+            instr |= 0b0001110010000000;
+            break;
+        case 'M-D':
+            instr |= 0b0001000111000000;
+            break;
+        case 'D-1':
+            instr |= 0b0000001110000000;
+            break;
+        case 'D-A':
+            instr |= 0b0000010011000000;
+            break;
+        case 'D-M':
+            instr |= 0b0001010011000000;
+            break;
+        //case 'D&A': instr |= 0b0000000000000000
+        case 'D&M':
+            instr |= 0b0001000000000000;
+            break;
+        case 'D|A':
+            instr |= 0b0000010101000000;
+            break;
+        case 'D|M':
+            instr |= 0b0001010101000000;
+            break;
+    }
+    return instr;
+}
+function parse(tokens) {
     // filter out strings, they are whitespace-only if grammar is correctly defined, and comments
     const t = tokens.filter((e) => typeof (e) === 'object' && e.type !== 'comment');
     // piece back instructions from the grammar
@@ -82,7 +241,6 @@ function assemble(tokens) {
             labelsFound++;
         }
     });
-    assembly = assembly.filter((e) => !('s' in e));
-    return JSON.stringify(assembly).replace(/},/g, "},</br>");
+    return { labels: labels, statements: assembly.filter((e) => !('s' in e)) };
 }
 export { assemble };
