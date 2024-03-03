@@ -1,6 +1,6 @@
 import CodeFlask from "https://cdn.jsdelivr.net/npm/codeflask@1.4.1/+esm";
 import Prism from "https://cdn.jsdelivr.net/npm/prismjs@1.29.0/+esm";
-import { test } from './lispmachine.js';
+import { assemble } from './lispmachine.js';
 
 const editor = document.getElementById('editor');
 const output = document.getElementById("output");
@@ -14,11 +14,19 @@ const prismGrammarASM = {
     pattern: /(\([A-Z][A-Z]+)\)/,
     alias: 'string'
   },
+  jump: {
+    pattern: /\b(JEQ|JNE|JMP|JLE|JGE|JLT|JGT)\b/,
+    alias: 'keyword',
+  },
   keyword:
-    /\b(EQLM|MCDR|EMPTYCDR|JEQ|JNE|JMP|JLE|JGE|JLT|JGT)\b/,
-  operator: /(;|=)/,
+    /\b(EQLM|MCDR|EMPTYCDR)\b/,
+  hexnum: {
+    pattern: /(\@0x[0-9]+)/,
+    greedy: true,
+    alias: 'number',
+  },
   number: {
-    pattern: /(\@[0-9x]+)/,
+    pattern: /(\@[0-9]+)/,
     greedy: true,
   },
   address: {
@@ -26,8 +34,8 @@ const prismGrammarASM = {
     greedy: true,
     alias: 'string'
   },
-  symbol: /([ADM01])/,
-  punctuation: /[.\\:;,{}()]/,
+  symbol: /([ADM01])(?=[ADM;=+\-&|\s])/,
+  operator: /(;|=|\+|-|&|\|)/,
 };
 
 const flask = new CodeFlask(editor, {
@@ -42,7 +50,7 @@ flask.onUpdate( e => {
     while (output.firstChild) {
         output.removeChild(output.firstChild);
     }
-    output.insertAdjacentHTML('beforeend', test(tokens))
+    output.insertAdjacentHTML('beforeend', assemble(tokens))
 })
 
 // disable Prism autohighlighting on load
