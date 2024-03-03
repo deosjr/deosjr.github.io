@@ -16,3 +16,19 @@ body {
   position: absolute;
   right: 0;
 }
+
+.codeflask .token.address {
+    color: red;
+}
+
+.codeflask .token.label {
+    color: green;
+}
+
+.codeflask .token.comment {
+    color: grey;
+}
+
+.codeflask .token.operator {
+    color: red;
+}

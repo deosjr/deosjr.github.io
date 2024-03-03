@@ -1,0 +1,16 @@
+{
+  "name": "deosjr.github.io",
+  "version": "1.0.0",
+  "description": "",
+  "main": "editor.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
