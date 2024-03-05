@@ -5,6 +5,7 @@ class LispMachine {
         this.ramCar = new Uint16Array(0x4000);
         this.ramCdr = new Uint16Array(0x4000);
         this.registers = new Uint16Array(3);
+        this.history = [];
         this.output = [];
     }
     A() { return this.registers[0]; }
@@ -13,15 +14,22 @@ class LispMachine {
     setA(x) { this.registers[0] = x; }
     setD(x) { this.registers[1] = x; }
     setPC(x) { this.registers[2] = x; }
+    // TODO: capture entire run as diffs on memory
     run() {
         let pprev = -1;
         let prev = -1;
         for (let i = 0; i < 100000; i++) {
             const instr = this.rom[this.PC()];
+            let h = {};
             const isAinstr = (instr & 0x8000) === 0;
             if (isAinstr) {
-                this.setA(instr);
+                if (this.A() !== instr) {
+                    this.setA(instr);
+                    h.a = instr;
+                }
                 this.setPC(this.PC() + 1);
+                h.pc = this.PC();
+                this.history.push(h);
                 if (pprev === this.PC())
                     break;
                 pprev = prev;
@@ -63,22 +71,31 @@ class LispMachine {
                     break;
             }
             jump ? this.setPC(this.A()) : this.setPC(this.PC() + 1);
-            if (pprev === this.PC())
-                break;
-            pprev = prev;
-            prev = this.PC();
-            if ((instr & 0x0020) !== 0)
+            h.pc = this.PC();
+            if ((instr & 0x0020) !== 0) {
                 this.setA(outM);
-            if ((instr & 0x0010) !== 0)
+                h.a = outM;
+            }
+            if ((instr & 0x0010) !== 0) {
                 this.setD(outM);
+                h.d = outM;
+            }
             if ((instr & 0x0008) !== 0) {
                 // 0x6002 is the tape output address
                 if (this.A() === 0x6002) {
                     this.output.push(outM);
-                    continue;
+                    h.output = outM;
                 }
-                this.ramCar[this.A()] = outM;
+                else {
+                    this.ramCar[this.A()] = outM;
+                    h.car = { k: this.A(), v: outM };
+                }
             }
+            this.history.push(h);
+            if (pprev === this.PC())
+                break;
+            pprev = prev;
+            prev = this.PC();
         }
     }
     // instr is 16 bit (0-15), we only use bits 4-9 here
@@ -94,10 +111,9 @@ class LispMachine {
 function mux(x, y, sel) {
     return sel ? y : x;
 }
-function runFromTokens(tokens) {
+function loadProgram(tokens) {
     let lm = new LispMachine();
     lm.rom = assemble(tokens);
-    lm.run();
-    return lm.output;
+    return lm;
 }
-export { runFromTokens };
+export { loadProgram };

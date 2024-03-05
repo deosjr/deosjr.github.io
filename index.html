@@ -5,12 +5,25 @@
 <body>
 <h1>My homepage</h1>
 
+<script type="module" src="editor.js"></script>
+
 <a href="nand2lisp.html">Nand2Lisp part1: From Hack to Lisp machine</a>
 <p>
 <a href="nand2lisp2.html">Nand2Lisp part2: Full Lispy calculator</a>
 </body>
+<p></p>
+
+<div class=container>
+<button class=button id=backbutton>Backward</button>
+<button class=button id=forwardbutton>Forward</button>
+<div class=box id=a></div>
+<div class=box id=d></div>
+<div class=box id=pc></div>
+<div class=box id=cycles></div>
+</div>
+
+<input type="range" min=0 value=0 step=1 class="slider" id="stateslider">
 
 <div id=editor></div>
 <div id=output></div>
 
-<script type="module" src="editor.js"></script>
