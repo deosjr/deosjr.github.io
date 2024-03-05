@@ -24,11 +24,11 @@ class LispMachine {
             const isAinstr = (instr & 0x8000) === 0;
             if (isAinstr) {
                 if (this.A() !== instr) {
+                    h.a = { from: this.A(), to: instr };
                     this.setA(instr);
-                    h.a = instr;
                 }
+                h.pc = { from: this.PC(), to: this.PC() + 1 };
                 this.setPC(this.PC() + 1);
-                h.pc = this.PC();
                 this.history.push(h);
                 if (pprev === this.PC())
                     break;
@@ -70,15 +70,15 @@ class LispMachine {
                     jump = true;
                     break;
             }
+            h.pc = { from: this.PC(), to: jump ? this.A() : this.PC() + 1 };
             jump ? this.setPC(this.A()) : this.setPC(this.PC() + 1);
-            h.pc = this.PC();
             if ((instr & 0x0020) !== 0) {
+                h.a = { from: this.A(), to: outM };
                 this.setA(outM);
-                h.a = outM;
             }
             if ((instr & 0x0010) !== 0) {
+                h.d = { from: this.D(), to: outM };
                 this.setD(outM);
-                h.d = outM;
             }
             if ((instr & 0x0008) !== 0) {
                 // 0x6002 is the tape output address
@@ -87,8 +87,8 @@ class LispMachine {
                     h.output = outM;
                 }
                 else {
+                    h.car = { i: this.A(), from: this.ramCar[this.A()], to: outM };
                     this.ramCar[this.A()] = outM;
-                    h.car = { k: this.A(), v: outM };
                 }
             }
             this.history.push(h);

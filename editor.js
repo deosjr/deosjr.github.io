@@ -65,8 +65,8 @@ flask.onUpdate( e => {
     lm.run();
     output.insertAdjacentHTML('beforeend', lm.output)
     cycles = lm.history.length
+    slider.value = cycles
     slider.max = cycles
-    console.log(lm.history)
     renderButtons()
 })
 
@@ -80,7 +80,9 @@ function back() {
   cycles -= 1
   slider.value = cycles;
   const diff = lm.history[cycles]
-  console.log(diff) //todo: change A/D/PC
+  if ('a' in diff) lm.setA(diff.a.from)
+  if ('d' in diff) lm.setD(diff.d.from)
+  if ('pc' in diff) lm.setPC(diff.pc.from)
   renderButtons()
 }
 
@@ -88,8 +90,10 @@ function forward() {
   if (cycles === lm.history.length) return
   cycles += 1
   slider.value = cycles;
-  const diff = lm.history[cycles]
-  console.log(diff) //todo: change A/D/PC
+  const diff = lm.history[cycles-1]
+  if ('a' in diff) lm.setA(diff.a.to)
+  if ('d' in diff) lm.setD(diff.d.to)
+  if ('pc' in diff) lm.setPC(diff.pc.to)
   renderButtons()
 }
 
@@ -105,6 +109,7 @@ att.value = 0
 slider.setAttributeNode(att);
 slider.oninput = function() {
   cycles = parseInt(this.value);
+  // todo: look up state in history
   renderButtons()
 }
 
