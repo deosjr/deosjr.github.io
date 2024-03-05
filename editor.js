@@ -1,6 +1,6 @@
 import CodeFlask from "https://cdn.jsdelivr.net/npm/codeflask@1.4.1/+esm";
 import Prism from "https://cdn.jsdelivr.net/npm/prismjs@1.29.0/+esm";
-import { assemble } from './lispmachine.js';
+import { runFromTokens } from './lispmachine.js';
 
 const editor = document.getElementById('editor');
 const output = document.getElementById("output");
@@ -36,7 +36,7 @@ const prismGrammarASM = {
     greedy: true,
     alias: 'string'
   },
-  symbol: /([ADM01])(?=[ADM;=+\-&|\s])/,
+  symbol: /([ADM01])(?=[ADM;=+\-&|\s]|$)/,
   operator: /(;|=|\+|-|&|\|)/,
 };
 
@@ -52,13 +52,26 @@ flask.onUpdate( e => {
     while (output.firstChild) {
         output.removeChild(output.firstChild);
     }
-    output.insertAdjacentHTML('beforeend', assemble(tokens))
+    const out = runFromTokens(tokens)
+    output.insertAdjacentHTML('beforeend', out.toString())
 })
 
 // disable Prism autohighlighting on load
 window.Prism = window.Prism || {};
 Prism.manual = true;
 
+flask.updateCode(`// change me!
+      @42
+      D=A
+      @0x6002
+      M=D
+      DM=D-1
+      M=D-1
+  (END)
+      @END
+      0;JMP`)
+
+/*
 // 000c fc20 fc20 fc10 000b 85d0 0010 e302 000c fc20 fc20 87d0 6002 e308 001e ea87 000c fc20 8810 001c e305 000c fc20 87d0 000c e308 0000 ea87 001e ea87 001e ea87
 flask.updateCode(`(ASSQ)
     // assume @R11 = K (key)
@@ -99,4 +112,4 @@ flask.updateCode(`(ASSQ)
 (END)
     @END
     0;JMP`)
-
+*/
