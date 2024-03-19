@@ -5,12 +5,6 @@ import { loadProgram } from './lispmachine.js';
 const editor = document.getElementById('editor');
 const output = document.getElementById("output");
 
-const registerA = document.getElementById("a");
-const registerD = document.getElementById("d");
-const programCounter = document.getElementById("pc");
-const cycleCounter = document.getElementById("cycles");
-const slider = document.getElementById("stateslider");
-
 const prismGrammarASM = {
   comment: {
     pattern: /\/\/.*/,
@@ -53,7 +47,6 @@ const flask = new CodeFlask(editor, {
 });
 flask.addLanguage("lispassembly", prismGrammarASM);
 
-let cycles = 0;
 let lm = undefined;
 
 flask.onUpdate( e => {
@@ -65,60 +58,11 @@ flask.onUpdate( e => {
     lm.run();
     // todo: toggle output as list of hexwords, or as characters
     output.insertAdjacentHTML('beforeend', lm.output)
-    cycles = lm.history.length
-    slider.value = cycles
-    slider.max = cycles
-    renderButtons()
 })
 
 // disable Prism autohighlighting on load
 window.Prism = window.Prism || {};
 Prism.manual = true;
-
-// UI
-function back() {
-  if (cycles === 0) return
-  cycles -= 1
-  slider.value = cycles;
-  const diff = lm.history[cycles]
-  if ('a' in diff) lm.setA(diff.a.from)
-  if ('d' in diff) lm.setD(diff.d.from)
-  if ('pc' in diff) lm.setPC(diff.pc.from)
-  renderButtons()
-}
-
-function forward() {
-  if (cycles === lm.history.length) return
-  cycles += 1
-  slider.value = cycles;
-  const diff = lm.history[cycles-1]
-  if ('a' in diff) lm.setA(diff.a.to)
-  if ('d' in diff) lm.setD(diff.d.to)
-  if ('pc' in diff) lm.setPC(diff.pc.to)
-  renderButtons()
-}
-
-function renderButtons() {
-  registerA.textContent = `A: 0x${lm.A().toString(16).padStart(4, '0')}`
-  registerD.textContent = `D: 0x${lm.D().toString(16).padStart(4, '0')}`
-  programCounter.textContent = `PC: 0x${lm.PC().toString(16).padStart(4, '0')}`
-  cycleCounter.textContent = `CYCLES: ${cycles}`
-}
-
-var att = document.createAttribute("max")
-att.value = 0
-slider.setAttributeNode(att);
-slider.oninput = function() {
-  cycles = parseInt(this.value);
-  // todo: look up state in history
-  renderButtons()
-}
-
-const backbutton = document.getElementById("backbutton")
-backbutton.addEventListener("click", back);
-const forwardbutton = document.getElementById("forwardbutton")
-forwardbutton.addEventListener("click", forward);
-
 
 // initial code
 flask.updateCode(`// change me!
