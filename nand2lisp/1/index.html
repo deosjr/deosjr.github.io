@@ -7,6 +7,27 @@
 <h1>Nand2Lisp</h1>
 
 <script type="module" src="../editor.js"></script>
+<script>
+var setStartingCode = function(code) {
+	if (window["flask"]) {
+		window.flask.updateCode(code)
+	} else {
+		setTimeout(function() {
+			setStartingCode(code)
+		}, 100)
+	}
+}
+setStartingCode(`// change me!
+    @42
+    D=A
+    @0x6002
+    M=D
+    DM=D-1
+    M=D-1
+(END)
+    @END
+    0;JMP`)
+</script>
 
 </body>
 <p></p>
@@ -14,7 +35,9 @@
 <div class=container>
 	<div class=left>
 
-		Text about lispmachine
+		We start with a working implementation of Hack assembly code.
+		Play around with the editor and watch the output change!
+		When you are ready, click Next to start building a Lisp machine.
 
 		<p></p>
 		OUTPUT:
