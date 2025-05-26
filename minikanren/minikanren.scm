@@ -1,4 +1,5 @@
 (use-modules (scheme base)
+             (hoot hashtables)
              (hoot ffi))
 
 (define (var x) (vector x))
@@ -59,7 +60,8 @@
     ((procedure? s) (lambda () (bind (s) g)))
     (else (mplus (g (car s)) (bind (cdr s) g)))))
 
-(define (pull s) (if (procedure? s) (pull (s)) s))
+(define (pull s) 
+  (if (procedure? s) (pull (s)) s))
 (define (take-all s)
    (let ((s (pull s)))
      (if (null? s) '() (cons (car s) (take-all (cdr s))))))
@@ -127,7 +129,7 @@
 (define-syntax run*
   (syntax-rules ()
     ((_ (x ...) g0 g ...)
-     (mK-reify (take-all (call/empty-state (fresh (x ...) g0 g ...)))))))
+     (mK-reify (take-all (call/empty-state (fresh (x ...) g0 g ...))))))) ;)
 
 ;(display (run* (x) (disj (equalo x 5) (equalo x 6))))
 
@@ -145,3 +147,144 @@
 (define test (run* (x) (disj (equalo x 5) (equalo x 6))))
 (define out (format #f "~a" test))
 (append-child! (document-body) (make-text-node out))
+
+(define dl_edb (make-hashtable))
+(define dl_idb (make-hashtable))
+(define dl_rdb '())
+(define dl_idx_entity (make-hashtable))
+(define dl_idx_attr (make-hashtable))
+
+(define dl_counter 0)
+(define (dl_nextID)
+   (set! dl_counter (+ dl_counter 1))
+   dl_counter)
+
+(define (dl_assert entity attr value)
+  (hashtable-set! dl_edb (list entity attr value) #t)
+  (dl_update_indices (list entity attr value)))
+
+(define (dl_update_indices tuple)
+   (let ((entity (car tuple))
+         (attr (car (cdr tuple))))
+     (let ((m (hashtable-ref dl_idx_entity entity #f)))
+       (if m (hashtable-set! m tuple #t)
+         (let ((new (make-hashtable)))
+           (hashtable-set! dl_idx_entity entity new)
+           (hashtable-set! new tuple #t))))
+     (let ((m (hashtable-ref dl_idx_attr attr #f)))
+       (if m (hashtable-set! m tuple #t)
+         (let ((new (make-hashtable)))
+           (hashtable-set! dl_idx_attr attr new)
+           (hashtable-set! new tuple #t))))))
+
+(define-syntax dl_record
+   (syntax-rules ()
+     ((_ type (attr value) ...) (let ((id (dl_nextID)))
+       (dl_assert id (list type attr) value) ... id))))
+
+(define-syntax dl_find
+  (lambda (stx)
+    (define (symbol-with-question-mark? s)
+      (and (symbol? s)
+           (let ((str (symbol->string s)))
+             (and (positive? (string-length str))
+                  (char=? (string-ref str 0) #\?)))))
+
+  (define (collect-vars datum)
+        (cond
+          [(symbol? datum)
+           (if (symbol-with-question-mark? datum) (list datum) '())]
+          [(pair? datum)
+             (append (collect-vars (car datum))
+                     (collect-vars (cdr datum)))]
+          [else '()]))
+
+  (define (remove-duplicates syms)
+      (define seen '())
+      (define (unique s)
+        (let ((d (syntax->datum s)))
+          (if (member d seen) #f
+              (begin (set! seen (cons d seen)) #t))))
+      (filter unique syms))
+
+  (define (replace-symbols datum sym->gen)
+    (cond
+      [(symbol? datum)
+       (let ((mapped (assoc datum sym->gen)))
+         (if mapped (cdr mapped) (datum->syntax stx datum)))]
+      [(pair? datum)
+       (cons (replace-symbols (car datum) sym->gen)
+             (replace-symbols (cdr datum) sym->gen))]
+      [else (datum->syntax stx datum)]))
+
+  (syntax-case stx (where)
+    ((_ x where match ... )
+     (let* ((datum (syntax->datum #'(x match ...)))
+            (vars (remove-duplicates (collect-vars datum)))
+            (gens (generate-temporaries vars))
+            (sym->gen (map cons vars gens))
+            (replaced-x (replace-symbols (syntax->datum #'x) sym->gen))
+            (replaced-match (replace-symbols (syntax->datum #'(match ...)) sym->gen)))
+           #`(run* (q #,@gens) (equalo q `#,replaced-x) (dl_findo #,(replace-symbols (syntax->datum #'(match ... )) sym->gen)) ))))))
+
+(define-syntax dl_findo
+  (syntax-rules ()
+    ((_ (m ...)) (conj+ (dl_findo_ `m) ... ))))
+
+(define (dl_findo_ m)
+   (fresh (x y entity attr db)
+   (conso entity x m)
+   (conso attr y x)
+     (conde
+       [(boundo entity) (lookupo dl_idx_entity entity db) (membero m db)]
+       [(unboundo entity) (boundo attr) (lookupo dl_idx_attr attr db) (membero m db)] )))
+
+#| HELPER FUNCTIONS |#
+(define (list->set x)
+   (define list->set_ (lambda (a b)
+     (cond
+       [(null? a) b]
+       [(member? b (car a)) (list->set_ (cdr a) b)]
+       [else (list->set_ (cdr a) (cons (car a) b))])))
+   (list->set_ x '()))
+
+(define (foldl f l acc)
+   (if (null? l) acc
+     (foldl f (cdr l) (f (car l) acc))))
+
+(define (conso a b l) (equalo (cons a b) l))
+(define (boundo v)
+    (lambda (s/c)
+      (if (var? v)
+        (let ((x (walk v (car s/c))))
+          (if (var? x) mzero (unit s/c)))
+        (unit s/c))))
+(define (unboundo v)
+    (lambda (s/c)
+      (if (var? v)
+        (let ((x (walk v (car s/c))))
+          (if (var? x) (unit s/c) mzero))
+        mzero)))
+(define (lookupo m key value)
+    (lambda (s/c)
+      (let* ((k (if (var? key) (walk key (car s/c)) key))
+             (v (hashtable-ref m k #f)))
+       (if v ((equalo value (hashtable-keys v)) s/c) mzero))))
+
+(define (membero x l)
+   (fresh (a d)
+     (conso a d l)
+     (conde
+       [(equalo a x)]
+       [(membero x d)])))
+
+(define (member? l x)
+   (cond
+     [(null? l) #f]
+     [(eqv? (car l) x) #t]
+     [else (member? (cdr l) x)]))
+
+(dl_record 'car ('speed 4) ('smth 5))
+(define test2 (dl_find ,?y where (,?x (car speed) 4) (,?x (car smth) ,?y) ))
+(define out2 (format #f "~a" test2))
+(append-child! (document-body) (make-text-node out2)) ; (5)
