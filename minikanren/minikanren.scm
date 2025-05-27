@@ -96,6 +96,15 @@
      ((_ (x0 x ...) g0 g ...)
       (call/fresh (lambda (x0) (fresh (x ...) g0 g ...))))))
 
+; generalized call/fresh as a function
+(define (fresh-vars count kont)
+  (lambda (s/c)
+    (let loop ((n count) (vars '()) (st s/c))
+      (if (zero? n)
+        ((apply kont (reverse vars)) st)
+        (let ((c (cdr st)))
+          (loop (- n 1) (cons (var c) vars) `(,(car s/c) . ,(+ c 1))) )))))
+
 (define (mK-reify s/c*) (map reify-state/1st-var s/c*))
 (define (reify-state/1st-var s/c)
    (let ((v (walk* (var 0) (car s/c))))
@@ -129,7 +138,9 @@
 (define-syntax run*
   (syntax-rules ()
     ((_ (x ...) g0 g ...)
-     (mK-reify (take-all (call/empty-state (fresh (x ...) g0 g ...))))))) ;)
+     (mK-reify (take-all (call/empty-state (fresh (x ...) g0 g ...)))))))
+
+(define (runf* goal) (mK-reify (take-all (call/empty-state goal))))
 
 ;(display (run* (x) (disj (equalo x 5) (equalo x 6))))
 
@@ -144,7 +155,7 @@
     "element" "appendChild"
     (ref null extern) (ref null extern) -> (ref null extern))
 
-(define test (run* (x) (disj (equalo x 5) (equalo x 6))))
+(define test (runf* (fresh-vars 2 (lambda (q x) (conj (equalo q x) (disj (equalo x 5) (equalo x 6)))))))
 (define out (format #f "~a" test))
 (append-child! (document-body) (make-text-node out))
 
@@ -182,7 +193,24 @@
      ((_ type (attr value) ...) (let ((id (dl_nextID)))
        (dl_assert id (list type attr) value) ... id))))
 
-(define-syntax dl_find
+; goal looks like: (fresh-vars 3 (lambda (q ?x ?y) (equalo q ?x) (dl_findo ( (,?x '(car speed) 4) ))))
+(define (dl_find goal) (runf* goal))
+
+(define-syntax dl_findo
+  (syntax-rules ()
+    ((_ (m ...)) (conj+ (dl_findo_ `m) ... ))))
+
+(define (dl_findo_ m)
+   (fresh (x y entity attr db)
+   (conso entity x m)
+   (conso attr y x)
+     (conde
+       [(boundo entity) (lookupo dl_idx_entity entity db) (membero m db)]
+       [(unboundo entity) (boundo attr) (lookupo dl_idx_attr attr db) (membero m db)] )))
+
+; compiles the rule to a goal function
+; here we need to find the ?vars and assert #`(fresh-vars #,num-vars (lambda (#,@vars) (conj (equalo q #,head) (dl_findo #,@body))))
+(define-syntax dl_rule
   (lambda (stx)
     (define (symbol-with-question-mark? s)
       (and (symbol? s)
@@ -217,27 +245,36 @@
              (replace-symbols (cdr datum) sym->gen))]
       [else (datum->syntax stx datum)]))
 
-  (syntax-case stx (where)
-    ((_ x where match ... )
-     (let* ((datum (syntax->datum #'(x match ...)))
-            (vars (remove-duplicates (collect-vars datum)))
+  (syntax-case stx (:-)
+    ((_ (head hx hy) :- (body bx by) ...)
+     (let* ((datums (syntax->datum #'((hx head hy) (bx body by) ...)))
+            (head-datum (car datums))
+            (body-datums (cdr datums))
+            (vars (remove-duplicates (collect-vars datums)))
+            (numvars (+ 1 (length vars)))
             (gens (generate-temporaries vars))
             (sym->gen (map cons vars gens))
-            (replaced-x (replace-symbols (syntax->datum #'x) sym->gen))
-            (replaced-match (replace-symbols (syntax->datum #'(match ...)) sym->gen)))
-           #`(run* (q #,@gens) (equalo q `#,replaced-x) (dl_findo #,(replace-symbols (syntax->datum #'(match ... )) sym->gen)) ))))))
+            (replaced-head (replace-symbols head-datum sym->gen))
+            (replaced-body (replace-symbols body-datums sym->gen)))
+       #`(dl_assert_rule (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q `#,replaced-head) (dl_findo #,replaced-body) )))))))))
 
-(define-syntax dl_findo
-  (syntax-rules ()
-    ((_ (m ...)) (conj+ (dl_findo_ `m) ... ))))
+(define (dl_assert_rule rule)
+  (set! dl_rdb (cons rule dl_rdb)))
 
-(define (dl_findo_ m)
-   (fresh (x y entity attr db)
-   (conso entity x m)
-   (conso attr y x)
-     (conde
-       [(boundo entity) (lookupo dl_idx_entity entity db) (membero m db)]
-       [(unboundo entity) (boundo attr) (lookupo dl_idx_attr attr db) (membero m db)] )))
+(define (dl_fixpoint)
+  (set! dl_idb (make-hashtable))
+  (dl_fixpoint_iterate))
+
+(define (dl_fixpoint_iterate)
+  (let* ((facts (map dl_apply_rule dl_rdb))
+         (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
+         (new (hashtable-keys (set_difference factset dl_idb))))
+    (set-extend! dl_idb new)
+    (for-each dl_update_indices new)
+    (if (not (null? new)) (dl_fixpoint_iterate))))
+
+(define (dl_apply_rule rule)
+  (dl_find rule))
 
 #| HELPER FUNCTIONS |#
 (define (list->set x)
@@ -284,7 +321,39 @@
      [(eqv? (car l) x) #t]
      [else (member? (cdr l) x)]))
 
-(dl_record 'car ('speed 4) ('smth 5))
-(define test2 (dl_find ,?y where (,?x (car speed) 4) (,?x (car smth) ,?y) ))
-(define out2 (format #f "~a" test2))
-(append-child! (document-body) (make-text-node out2)) ; (5)
+(define (set-extend! m keys)
+   (if (null? keys) m (begin (hashtable-set! m (car keys) #t) (set-extend! m (cdr keys)))))
+
+(define (set_difference a b)
+   (define check_keys (lambda (k m)
+     (if (null? k) (make-hashtable) (let ((rec (check_keys (cdr k) m)))
+       (if (not (hashtable-ref m (car k) #f)) (hashtable-set! rec (car k) #t))
+       rec ))))
+   (check_keys (hashtable-keys a) b))
+
+;(dl_record 'car ('speed 4) ('smth 5))
+; goal looks like: (fresh-vars 3 (lambda (q ?x ?y) (equalo q ?x) (dl_findo ( (,?x '(car speed) 4) ))))
+;(define test2 (dl_find (fresh-vars 3 (lambda (q ?x ?y) (conj (equalo q `,?y) (dl_findo ( (,?x (car speed) 4) (,?x (car smth) ,?y) )))))))
+; there could be a separate macro rewriting the below to the above
+;(define test2 (dl_find ,?y where (,?x (car speed) 4) (,?x (car smth) ,?y) ))
+
+(define a (dl_record 'vertex))
+(define b (dl_record 'vertex))
+(define c (dl_record 'vertex))
+(define d (dl_record 'vertex))
+(define e (dl_record 'vertex))
+(define (dl_edge x y) (dl_assert x 'edge y))
+(dl_edge a c)
+(dl_edge b a)
+(dl_edge b d)
+(dl_edge c d)
+(dl_edge d a)
+(dl_edge d e)
+(dl_rule (reachable ,?x ,?y) :- (edge ,?x ,?y))
+(dl_rule (reachable ,?x ,?y) :- (edge ,?x ,?z) (reachable ,?z ,?y))
+(dl_fixpoint)
+;(define test2 (dl_find ,?id where (,?id reachable ,?id)))
+(define test2 (dl_find (fresh-vars 1 (lambda (?id) (dl_findo ( (,?id reachable ,?id) ))))))
+
+(define out2 (format #f "~a" test2)) ; expect a permutation of (1 3 4)
+(append-child! (document-body) (make-text-node out2))
