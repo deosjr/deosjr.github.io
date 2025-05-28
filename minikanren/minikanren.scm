@@ -1,4 +1,5 @@
 (use-modules (scheme base)
+             (hoot gensym)
              (hoot hashtables)
              (hoot ffi))
 
@@ -144,20 +145,9 @@
 
 ;(display (run* (x) (disj (equalo x 5) (equalo x 6))))
 
-; javascript helpers
-(define-foreign document-body
-    "document" "body"
-    -> (ref null extern))
-(define-foreign make-text-node
-    "document" "createTextNode"
-    (ref string) -> (ref null extern))
-(define-foreign append-child!
-    "element" "appendChild"
-    (ref null extern) (ref null extern) -> (ref null extern))
-
-(define test (runf* (fresh-vars 2 (lambda (q x) (conj (equalo q x) (disj (equalo x 5) (equalo x 6)))))))
-(define out (format #f "~a" test))
-(append-child! (document-body) (make-text-node out))
+;(define test (runf* (fresh-vars 2 (lambda (q x) (conj (equalo q x) (disj (equalo x 5) (equalo x 6)))))))
+;(define out (format #f "~a" test))
+;(append-child! (document-body) (make-text-node out))
 
 (define dl_edb (make-hashtable))
 (define dl_idb (make-hashtable))
@@ -331,6 +321,7 @@
        rec ))))
    (check_keys (hashtable-keys a) b))
 
+#|
 ;(dl_record 'car ('speed 4) ('smth 5))
 ; goal looks like: (fresh-vars 3 (lambda (q ?x ?y) (equalo q ?x) (dl_findo ( (,?x '(car speed) 4) ))))
 ;(define test2 (dl_find (fresh-vars 3 (lambda (q ?x ?y) (conj (equalo q `,?y) (dl_findo ( (,?x (car speed) 4) (,?x (car smth) ,?y) )))))))
@@ -357,3 +348,152 @@
 
 (define out2 (format #f "~a" test2)) ; expect a permutation of (1 3 4)
 (append-child! (document-body) (make-text-node out2))
+|#
+
+; RealTalk
+; note: 'this' will have to be set within each page execution somehow?
+; code to be executed is compiled in 'when' so we inject it there using (lambda (page) f ...)
+(define-syntax claim
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ id attr value)
+       (with-syntax ((this (datum->syntax stx 'this)))
+         #'(begin
+             (dl_assert this 'claims (list id attr value))
+             (dl_assert id attr value)))))))
+
+(define-syntax wish
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ x)
+       (with-syntax ((this (datum->syntax stx 'this)))
+       #'(dl_assert this 'wishes 'x))))))
+
+#|
+(define-syntax when
+  (lambda (stx)
+    (syntax-case stx (wishes do)
+    ((_ (condition ...) do statement ... )
+       (with-syntax ((this (datum->syntax stx 'this)))
+           #'(dl_rule (code this (lambda (this) (begin statement ...))) :- condition ...)))
+    ((_ someone wishes w do statement ... )
+       (with-syntax ((this (datum->syntax stx 'this)))
+           #'(dl_rule (code this (lambda (this) (begin statement ...))) :- (wishes someone w) ))))))
+|#
+
+; the 'when' macro is like dl_rule, we can't use dl_rule directly because we need to have the (lambda (this) ..) part unescaped
+(define-syntax when
+  (lambda (stx)
+    (define (symbol-with-question-mark? s)
+      (and (symbol? s)
+           (let ((str (symbol->string s)))
+             (and (positive? (string-length str))
+                  (char=? (string-ref str 0) #\?)))))
+
+  (define (collect-vars datum)
+        (cond
+          [(symbol? datum)
+           (if (symbol-with-question-mark? datum) (list datum) '())]
+          [(pair? datum)
+             (append (collect-vars (car datum))
+                     (collect-vars (cdr datum)))]
+          [else '()]))
+
+  (define (remove-duplicates syms)
+      (define seen '())
+      (define (unique s)
+        (let ((d (syntax->datum s)))
+          (if (member d seen) #f
+              (begin (set! seen (cons d seen)) #t))))
+      (filter unique syms))
+
+  (define (replace-symbols datum sym->gen)
+    (cond
+      [(symbol? datum)
+       (let ((mapped (assoc datum sym->gen)))
+         (if mapped (cdr mapped) (datum->syntax stx datum)))]
+      [(pair? datum)
+       (cons (replace-symbols (car datum) sym->gen)
+             (replace-symbols (cdr datum) sym->gen))]
+      [else (datum->syntax stx datum)]))
+
+  (syntax-case stx (do)
+    ((_ ((condition cx cy) ...) do statement ...)
+       (with-syntax ((this (datum->syntax stx 'this)))
+         (let* ((datums (syntax->datum #'((cx condition cy) ...)))
+            (vars (remove-duplicates (collect-vars datums)))
+            (numvars (+ 1 (length vars)))
+            (gens (generate-temporaries vars))
+            (sym->gen (map cons vars gens))
+            (st-datums (syntax->datum #'(statement ...)))
+            (st-replaced (replace-symbols st-datums sym->gen))
+            (replaced (replace-symbols datums sym->gen)))
+       #`(dl_assert_rule 
+           (let ((code `,(lambda (this #,@gens) (begin #,@st-replaced))))
+             (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q (list this 'code (cons code (list #,@gens)))) (dl_findo #,replaced) )))))))))))
+
+; redefine dl_fixpoint injecting code execution as result of rules
+(define (dl_fixpoint_iterate)
+  (let* ((facts (map dl_apply_rule dl_rdb))
+         (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
+         (new (hashtable-keys (set_difference factset dl_idb))))
+    (set-extend! dl_idb new)
+    (for-each dl_update_indices new)
+    ; result of dl_apply_rule should be a tuple (this 'code (proc . args))
+    (for-each (lambda (c)
+      (let ((this (car c))
+            (proc (caaddr c))
+            (args (cdaddr c)))
+         (apply proc this args))) new)
+    (if (not (null? new)) (dl_fixpoint_iterate))))
+
+; javascript helpers
+(define-foreign document-body
+    "document" "body"
+    -> (ref null extern))
+(define-foreign get-element-by-id
+    "document" "getElementById"
+    (ref string) -> (ref null extern))
+(define-foreign make-text-node
+    "document" "createTextNode"
+    (ref string) -> (ref null extern))
+(define-foreign append-child!
+    "element" "appendChild"
+    (ref null extern) (ref null extern) -> (ref null extern))
+(define-foreign make-element
+    "document" "createElement"
+    (ref string) -> (ref null extern))
+(define-foreign set-attribute!
+    "element" "setAttribute"
+    (ref null extern) (ref string) (ref string) -> none)
+(define-foreign set-background!
+    "element" "setBackground"
+    (ref null extern) (ref string) -> none)
+
+(define page1func (lambda (this) 
+  (claim this 'highlighted "red")
+))
+(define page1 (dl_record 'page ('id 1) ('code page1func)))
+
+(define page2func (lambda (this) 
+  ; confusing: conditions need logic vars to be unquoted, code does _not_
+  (when ((highlighted ,?p ,?color)) do (set-background! (get-element-by-id (number->string ?p)) ?color))
+))
+(define page2 (dl_record 'page ('id 2) ('code page2func)))
+
+(define dynamicland (append-child! (document-body) (make-element "div")))
+(set-attribute! dynamicland "id" "dynamicland")
+
+(define (make-page-div id)
+  (let ((div (make-element "div")))
+    (set-attribute! div "class" "page")
+    (set-attribute! div "id" (number->string id))
+    (append-child! dynamicland div) div))
+
+(append-child! (make-page-div page1) (make-text-node "(claim this 'highlighted \"red\")"))
+(append-child! (make-page-div page2) (make-text-node "(when ((highlighted ,?p ,?color)) do (set-background! (get-element-by-id (number->string ?p)) ?color))"))
+
+; When a page is in view, its code is executed. Then when all pages have ran, dl_fixpoint runs all consequences.
+(page1func page1)
+(page2func page2)
+(dl_fixpoint)
