@@ -7,3 +7,14 @@
 	background: white;
 	border: solid;
 }
+
+.container {
+	display: flex;
+	justify-content: center;
+}
+
+#dynamicland {
+	width: 500px;
+        height: 300px;
+        border: solid;
+}
