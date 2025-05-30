@@ -30,7 +30,8 @@ window.addEventListener("load", async () => {
         event: {
 	  preventDefault(e) { e.preventDefault() },
           mouseX(e) { return e.clientX },
-          mouseY(e) { return e.clientY }
+          mouseY(e) { return e.clientY },
+	  firstTouch(e) { return e.changedTouches[0] }
         }
       }});
   } catch(e) {

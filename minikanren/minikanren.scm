@@ -525,6 +525,9 @@
 (define-foreign prevent-default
   "event" "preventDefault"
   (ref null extern) -> none)
+(define-foreign first-touch
+  "event" "firstTouch"
+  (ref null extern) -> (ref null extern))
 
 (define dynamicland (append-child! (document-body) (make-element "div")))
 (set-attribute! dynamicland "id" "dynamicland")
@@ -568,8 +571,26 @@
       ;(recalculate-pages)
       (set-z-index! div "1")
       (set-style-left! div (format #f "~apx" (+ (mouse-x e) *mouse-offset-x*)))
-      (set-style-top! div (format #f "~apx" (+ (mouse-y e) *mouse-offset-y*)))
-    ))))))
+      (set-style-top! div (format #f "~apx" (+ (mouse-y e) *mouse-offset-y*))))))))
+; duplicate for touch events
+  (add-event-listener! div "touchstart" (procedure->external (lambda (e)
+    (set-z-index! div "1")
+    (set! *mouse-offset-x* (- (offset-left div) (mouse-x (first-touch e))))
+    (set! *mouse-offset-y* (- (offset-top div) (mouse-y (first-touch e))))
+    (set! *mouse-down* #t))))
+  (add-event-listener! div "touchend" (procedure->external (lambda (e)
+    (set-z-index! div "0")
+    (recalculate-pages)	; for now, only recalculate after having dragged a page
+    (set! *mouse-down* #f))))
+  (add-event-listener! div "touchmove" (procedure->external (lambda (e)
+    (prevent-default e)
+    (if *mouse-down* (begin
+      ; too slow! todo: check when page moves in/out of table bounds
+      ;(recalculate-pages)
+      (set-z-index! div "1")
+      (set-style-left! div (format #f "~apx" (+ (mouse-x (first-touch e)) *mouse-offset-x*)))
+      (set-style-top! div (format #f "~apx" (+ (mouse-y (first-touch e)) *mouse-offset-y*))))))))
+    )
 
 (define (reset-page-style! pagediv)
   (let ((left (get-left pagediv))
