@@ -12,7 +12,18 @@ window.addEventListener("load", async () => {
         element: {
           setAttribute(elem, name, value) { elem.setAttribute(name, value); },
           setBackground(elem, value) { elem.style.background = value },
-          appendChild(parent, child) { return parent.appendChild(child); }
+          setZIndex(elem, value) { elem.style.zIndex = value },
+          setLeft(elem, value) { elem.style.left = value },
+          setTop(elem, value) { elem.style.top = value },
+          addEventListener(elem, name, f) { elem.addEventListener(name, f, true); },
+          appendChild(parent, child) { return parent.appendChild(child); },
+          offsetLeft(elem) { return elem.offsetLeft; },
+          offsetTop(elem) { return elem.offsetTop; }
+        },
+        event: {
+	  preventDefault(e) { e.preventDefault() },
+          mouseX(e) { return e.clientX },
+          mouseY(e) { return e.clientY }
         }
       }});
   } catch(e) {

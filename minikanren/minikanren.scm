@@ -469,6 +469,33 @@
 (define-foreign set-background!
     "element" "setBackground"
     (ref null extern) (ref string) -> none)
+(define-foreign add-event-listener!
+  "element" "addEventListener"
+  (ref null extern) (ref string) (ref null extern) -> none)
+(define-foreign mouse-x
+  "event" "mouseX"
+  (ref null extern) -> i32)
+(define-foreign mouse-y
+  "event" "mouseY"
+  (ref null extern) -> i32)
+(define-foreign offset-left
+  "element" "offsetLeft"
+  (ref null extern) -> i32)
+(define-foreign offset-top
+  "element" "offsetTop"
+  (ref null extern) -> i32)
+(define-foreign set-style-left!
+  "element" "setLeft"
+  (ref null extern) (ref string) -> none)
+(define-foreign set-style-top!
+  "element" "setTop"
+  (ref null extern) (ref string) -> none)
+(define-foreign set-z-index!
+  "element" "setZIndex"
+  (ref null extern) (ref string) -> none)
+(define-foreign prevent-default
+  "event" "preventDefault"
+  (ref null extern) -> none)
 
 (define page1func (lambda (this) 
   (claim this 'highlighted "red")
@@ -490,8 +517,38 @@
     (set-attribute! div "id" (number->string id))
     (append-child! dynamicland div) div))
 
-(append-child! (make-page-div page1) (make-text-node "(claim this 'highlighted \"red\")"))
-(append-child! (make-page-div page2) (make-text-node "(when ((highlighted ,?p ,?color)) do (set-background! (get-element-by-id (number->string ?p)) ?color))"))
+(define page1div (make-page-div page1))
+(define page2div (make-page-div page2))
+(append-child! page1div (make-text-node "(claim this 'highlighted \"red\")"))
+(append-child! page2div (make-text-node "(when ((highlighted ,?p ,?color)) do (set-background! (get-element-by-id (number->string ?p)) ?color))"))
+
+(define *mouse-down* #f)
+(define *mouse-offset-x* 0)
+(define *mouse-offset-y* 0)
+
+(define (make-div-draggable div)
+  (add-event-listener! div "mousedown" (procedure->external (lambda (e)
+    (set-z-index! div "1")
+    (set! *mouse-offset-x* (- (offset-left div) (mouse-x e)))
+    (set! *mouse-offset-y* (- (offset-top div) (mouse-y e)))
+    (set! *mouse-down* #t))))
+  (add-event-listener! div "mouseup" (procedure->external (lambda (e)
+    (set-z-index! div "0")
+    (set! *mouse-down* #f))))
+  (add-event-listener! div "mousemove" (procedure->external (lambda (e)
+    (prevent-default e)
+    (if *mouse-down* (begin
+      (set-style-left! div (format #f "~apx" (+ (mouse-x e) *mouse-offset-x*)))
+      (set-style-top! div (format #f "~apx" (+ (mouse-y e) *mouse-offset-y*)))
+      ; TODO: recalculate pages
+    ))))))
+
+(make-div-draggable page1div)
+(make-div-draggable page2div)
+(set-style-left! page1div "800px")
+(set-style-left! page2div "800px")
+(set-style-top! page1div "10px")
+(set-style-top! page2div "320px")
 
 ; When a page is in view, its code is executed. Then when all pages have ran, dl_fixpoint runs all consequences.
 (page1func page1)
