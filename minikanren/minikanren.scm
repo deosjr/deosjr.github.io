@@ -160,6 +160,14 @@
    (set! dl_counter (+ dl_counter 1))
    dl_counter)
 
+(define (dl_reset)
+  (set! dl_edb (make-hashtable))
+  (set! dl_idb (make-hashtable))
+  (set! dl_rdb '())
+  (set! dl_idx_entity (make-hashtable))
+  (set! dl_idx_attr (make-hashtable))
+  (set! dl_counter 0))
+
 (define (dl_assert entity attr value)
   (hashtable-set! dl_edb (list entity attr value) #t)
   (dl_update_indices (list entity attr value)))
@@ -484,6 +492,9 @@
 (define-foreign offset-top
   "element" "offsetTop"
   (ref null extern) -> i32)
+(define-foreign set-style!
+  "element" "setStyle"
+  (ref null extern) (ref string) -> none)
 (define-foreign set-style-left!
   "element" "setLeft"
   (ref null extern) (ref string) -> none)
@@ -493,34 +504,57 @@
 (define-foreign set-z-index!
   "element" "setZIndex"
   (ref null extern) (ref string) -> none)
+(define-foreign get-left
+  "element" "getLeft"
+  (ref null extern) -> (ref string))
+(define-foreign get-top
+  "element" "getTop"
+  (ref null extern) -> (ref string))
+(define-foreign get-z-index
+  "element" "getZIndex"
+  (ref null extern) -> (ref string))
+(define-foreign get-x
+  "element" "getX"
+  (ref null extern) -> i32)
+(define-foreign get-y
+  "element" "getY"
+  (ref null extern) -> i32)
+(define-foreign get-bounding-client-rect
+  "element" "getBoundingClientRect"
+  (ref null extern) -> (ref null extern))
 (define-foreign prevent-default
   "event" "preventDefault"
   (ref null extern) -> none)
 
+(define dynamicland (append-child! (document-body) (make-element "div")))
+(set-attribute! dynamicland "id" "dynamicland")
+
 (define page1func (lambda (this) 
   (claim this 'highlighted "red")
 ))
-(define page1 (dl_record 'page ('id 1) ('code page1func)))
 
 (define page2func (lambda (this) 
   ; confusing: conditions need logic vars to be unquoted, code does _not_
   (when ((highlighted ,?p ,?color)) do (set-background! (get-element-by-id (number->string ?p)) ?color))
 ))
-(define page2 (dl_record 'page ('id 2) ('code page2func)))
 
-(define dynamicland (append-child! (document-body) (make-element "div")))
-(set-attribute! dynamicland "id" "dynamicland")
+(define *pages* '())
+(define *procs* (make-hashtable))
+(define *divs* (make-hashtable))
+
+(define (add-page proc)
+  (let ((pid (dl_record 'page ('code proc))))
+    (set! *pages* (cons pid *pages*))
+    (hashtable-set! *procs* pid proc)
+    (hashtable-set! *divs* pid (make-page-div pid)) pid))
 
 (define (make-page-div id)
   (let ((div (make-element "div")))
+    (hashtable-set! *divs* id div)
     (set-attribute! div "class" "page")
     (set-attribute! div "id" (number->string id))
+    (make-div-draggable div)
     (append-child! dynamicland div) div))
-
-(define page1div (make-page-div page1))
-(define page2div (make-page-div page2))
-(append-child! page1div (make-text-node "(claim this 'highlighted \"red\")"))
-(append-child! page2div (make-text-node "(when ((highlighted ,?p ,?color)) do (set-background! (get-element-by-id (number->string ?p)) ?color))"))
 
 (define *mouse-down* #f)
 (define *mouse-offset-x* 0)
@@ -534,23 +568,65 @@
     (set! *mouse-down* #t))))
   (add-event-listener! div "mouseup" (procedure->external (lambda (e)
     (set-z-index! div "0")
+    (recalculate-pages)	; for now, only recalculate after having dragged a page
     (set! *mouse-down* #f))))
   (add-event-listener! div "mousemove" (procedure->external (lambda (e)
     (prevent-default e)
     (if *mouse-down* (begin
+      ; too slow! perhaps limit by time interval?
+      ;(recalculate-pages)
+      (set-z-index! div "1")
       (set-style-left! div (format #f "~apx" (+ (mouse-x e) *mouse-offset-x*)))
       (set-style-top! div (format #f "~apx" (+ (mouse-y e) *mouse-offset-y*)))
-      ; TODO: recalculate pages
     ))))))
 
-(make-div-draggable page1div)
-(make-div-draggable page2div)
+(define (reset-page-style! pagediv)
+  (let ((left (get-left pagediv))
+        (top (get-top pagediv))
+        (z (get-z-index pagediv)))
+    (set-style! pagediv "")
+    (set-style-left! pagediv left)
+    (set-style-top! pagediv top)
+    (set-z-index! pagediv z)
+))
+
+; When a page is in view, its code is executed. Then when all pages have ran, dl_fixpoint runs all consequences.
+(define (recalculate-pages)
+  (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
+  (dl_reset)
+  (for-each execute-page (filter on-table? *pages*))
+  (dl_fixpoint)
+)
+
+(define (execute-page pid)
+  ((hashtable-ref *procs* pid #f) pid))
+
+; hardcoded for now. table is 800x500px, page is 300x300
+(define (on-table? pid)
+  (let* ((div (hashtable-ref *divs* pid #f))
+         (stylex (get-left div))
+         (styley (get-top div))
+         (divx (string->number (substring stylex 0 (- (string-length stylex) 2)))) ;-px
+         (divy (string->number (substring styley 0 (- (string-length styley) 2)))) ;-px
+         (rect (get-bounding-client-rect dynamicland))
+         (rectx (get-x rect))
+         (recty (get-y rect)))
+    (and (> divx rectx)
+         (< (+ divx 300) (+ rectx 800))
+         (> divy recty)
+         (< (+ divy 300) (+ recty 500)))))
+
+(define page1 (add-page page1func))
+(define page2 (add-page page2func))
+
+(define page1div (hashtable-ref *divs* page1 #f))
+(define page2div (hashtable-ref *divs* page2 #f))
+(append-child! page1div (make-text-node "(claim this 'highlighted \"red\")"))
+(append-child! page2div (make-text-node "(when ((highlighted ,?p ,?color)) do (set-background! (get-element-by-id (number->string ?p)) ?color))"))
+
 (set-style-left! page1div "800px")
 (set-style-left! page2div "800px")
 (set-style-top! page1div "10px")
 (set-style-top! page2div "320px")
 
-; When a page is in view, its code is executed. Then when all pages have ran, dl_fixpoint runs all consequences.
-(page1func page1)
-(page2func page2)
-(dl_fixpoint)
+(recalculate-pages)
