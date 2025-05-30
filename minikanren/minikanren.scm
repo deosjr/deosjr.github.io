@@ -529,15 +529,6 @@
 (define dynamicland (append-child! (document-body) (make-element "div")))
 (set-attribute! dynamicland "id" "dynamicland")
 
-(define page1func (lambda (this) 
-  (claim this 'highlighted "red")
-))
-
-(define page2func (lambda (this) 
-  ; confusing: conditions need logic vars to be unquoted, code does _not_
-  (when ((highlighted ,?p ,?color)) do (set-background! (get-element-by-id (number->string ?p)) ?color))
-))
-
 (define *pages* '())
 (define *procs* (make-hashtable))
 (define *divs* (make-hashtable))
@@ -573,7 +564,7 @@
   (add-event-listener! div "mousemove" (procedure->external (lambda (e)
     (prevent-default e)
     (if *mouse-down* (begin
-      ; too slow! perhaps limit by time interval?
+      ; too slow! todo: check when page moves in/out of table bounds
       ;(recalculate-pages)
       (set-z-index! div "1")
       (set-style-left! div (format #f "~apx" (+ (mouse-x e) *mouse-offset-x*)))
@@ -595,8 +586,7 @@
   (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
   (dl_reset)
   (for-each execute-page (filter on-table? *pages*))
-  (dl_fixpoint)
-)
+  (dl_fixpoint))
 
 (define (execute-page pid)
   ((hashtable-ref *procs* pid #f) pid))
@@ -616,13 +606,20 @@
          (> divy recty)
          (< (+ divy 300) (+ recty 500)))))
 
-(define page1 (add-page page1func))
-(define page2 (add-page page2func))
+(define (get-page pid)
+  (hashtable-ref *divs* pid #f))
 
-(define page1div (hashtable-ref *divs* page1 #f))
-(define page2div (hashtable-ref *divs* page2 #f))
+(define page1 (add-page (lambda (this) 
+  (claim this 'highlighted "red"))))
+
+(define page2 (add-page (lambda (this) 
+  ; confusing: conditions need logic vars to be unquoted, code does _not_
+  (when ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color)))))
+
+(define page1div (get-page page1))
+(define page2div (get-page page2))
 (append-child! page1div (make-text-node "(claim this 'highlighted \"red\")"))
-(append-child! page2div (make-text-node "(when ((highlighted ,?p ,?color)) do (set-background! (get-element-by-id (number->string ?p)) ?color))"))
+(append-child! page2div (make-text-node "(when ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color))"))
 
 (set-style-left! page1div "800px")
 (set-style-left! page2div "800px")
