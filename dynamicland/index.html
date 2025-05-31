@@ -1,17 +1,19 @@
 <!DOCTYPE html>
 <html>
-<head>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<!-- thoughts on dynamicland and implementing it because Bret said thats the only way we will get to play with it -->
-<!-- visual essay: the Blue Prince in Dynamicland -->
-<div class=paper id="test" style="left:100px"></div>
-<div class=paper id="test2"></div>
-<div class=container>
-	<div class=table id="dynamicland"></div>
-</div>
-</body>
-<!-- https://github.com/stopachka/datalogJS -->
-<script src="drag.js"></script>
+  <head>
+    <script type="text/javascript" src="reflect.js"></script>
+    <script type="text/javascript" src="dynamicland.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  </head>
+  <body>
+    <main>
+    <p id="wasm-error" hidden="true">
+      A browser with Wasm GC and tail call support is required for
+      this demo.  We recommend using either Mozilla Firefox or Google
+      Chrome.
+    </p>
+    <p id="table"></p>
+    </main>
+  </body>
 </html>

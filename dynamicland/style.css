@@ -1,20 +1,28 @@
-.paper {
-	position: absolute;
-	left: 0px;
-	top: 0px;
-	width: 100px;
-	height: 100px;
-	background: white;
-	border: solid;
-}
-
-.container {
-	display: flex;
-	justify-content: center;
+main {
+	/*max-width: 70ch;*/
+	padding: 2ch;
+	margin: auto;
 }
 
 #dynamicland {
-	width: 500px;
-        height: 300px;
-        border: solid;
+	border: solid;
+	width: 800px;
+	height: 500px;
+}
+
+.page {
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	width: 300px;
+	height: 300px;
+	background: white;
+	border: solid;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.page:hover {
+	box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.5);
 }
