@@ -1,6 +1,7 @@
 (define-module (dom js)
   #:use-module (hoot ffi)
   #:export (document-body
+            remove-element
             get-element-by-id
             make-text-node
             append-child!
@@ -21,6 +22,7 @@
             get-z-index
             get-x
             get-y
+            get-width
             get-bounding-client-rect
             prevent-default
             first-touch))
@@ -34,6 +36,9 @@
 (define-foreign make-text-node
     "document" "createTextNode"
     (ref string) -> (ref null extern))
+(define-foreign remove-element
+    "element" "removeElement"
+    (ref null extern) -> none)
 (define-foreign append-child!
     "element" "appendChild"
     (ref null extern) (ref null extern) -> (ref null extern))
@@ -87,6 +92,9 @@
   (ref null extern) -> i32)
 (define-foreign get-y
   "element" "getY"
+  (ref null extern) -> i32)
+(define-foreign get-width
+  "element" "getWidth"
   (ref null extern) -> i32)
 (define-foreign get-bounding-client-rect
   "element" "getBoundingClientRect"

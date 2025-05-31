@@ -1,21 +1,27 @@
 main {
-	/*max-width: 70ch;*/
+	max-width: 70ch;
 	padding: 2ch;
 	margin: auto;
 }
 
 #dynamicland {
 	border: solid;
-	width: 800px;
-	height: 500px;
+	width: 60ch;
+	height: 30ch;
+	font-size: 1rem;
+}
+
+.table {
+	display: flex;
+	justify-content: center;
 }
 
 .page {
 	position: absolute;
 	left: 0px;
 	top: 0px;
-	width: 300px;
-	height: 300px;
+	width: 10ch;
+	height: 10ch;
 	background: white;
 	border: solid;
 	display: flex;
@@ -25,4 +31,8 @@ main {
 
 .page:hover {
 	box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.5);
+}
+
+.page * {
+	font-size: 0.5rem;
 }

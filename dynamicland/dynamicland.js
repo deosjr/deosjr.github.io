@@ -10,6 +10,7 @@ window.addEventListener("load", async () => {
           createElement: Document.prototype.createElement.bind(document)
         },
         element: {
+          removeElement(elem) { elem.remove(); },
           setAttribute(elem, name, value) { elem.setAttribute(name, value); },
           setStyle(elem, value) { elem.style = value },
           setBackground(elem, value) { elem.style.background = value },
@@ -25,7 +26,8 @@ window.addEventListener("load", async () => {
           offsetTop(elem) { return elem.offsetTop; },
           getBoundingClientRect(elem) { return elem.getBoundingClientRect() },
           getX(elem) { return elem.x },
-          getY(elem) { return elem.y }
+          getY(elem) { return elem.y },
+          getWidth(elem) { return elem.width }
         },
         event: {
 	  preventDefault(e) { e.preventDefault() },

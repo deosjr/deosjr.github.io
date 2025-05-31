@@ -189,20 +189,27 @@
 (define (execute-page pid)
   ((hashtable-ref *procs* pid #f) pid))
 
-; hardcoded for now. table is 800x500px, page is 300x300
+(define chInPx
+  (let ((div (make-element "div")))
+    (set-style! div "width:1ch;visibility:hidden")
+    (append-child! (document-body) div)
+    (let ((width (get-width (get-bounding-client-rect div))))
+      (remove-element div) width)))
+
+; hardcoded for now. table is 60x30ch, page is 10x10ch
 (define (on-table? pid)
   (let* ((div (hashtable-ref *divs* pid #f))
          (stylex (get-left div))
          (styley (get-top div))
-         (divx (string->number (substring stylex 0 (- (string-length stylex) 2)))) ;-px
-         (divy (string->number (substring styley 0 (- (string-length styley) 2)))) ;-px
+         (divx (string->number (substring stylex 0 (- (string-length stylex) 2)))) ;-ch
+         (divy (string->number (substring styley 0 (- (string-length styley) 2)))) ;-ch
          (rect (get-bounding-client-rect dynamicland))
          (rectx (get-x rect))
          (recty (get-y rect)))
     (and (> divx rectx)
-         (< (+ divx 300) (+ rectx 800))
+         (< (+ divx (* chInPx 10)) (+ rectx (* chInPx 60)))
          (> divy recty)
-         (< (+ divy 300) (+ recty 500)))))
+         (< (+ divy (* chInPx 10)) (+ recty (* chInPx 30))))))
 
 (define (get-page pid)
   (hashtable-ref *divs* pid #f))
@@ -216,11 +223,15 @@
 
 (define page1div (get-page page1))
 (define page2div (get-page page2))
-(append-child! page1div (make-text-node "(claim this 'highlighted \"red\")"))
-(append-child! page2div (make-text-node "(when ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color))"))
+(define (add-text pagediv text)
+  (let ((div (make-element "div")))
+    (append-child! div (make-text-node text))
+    (append-child! pagediv div)))
+(add-text page1div "(claim this 'highlighted \"red\")")
+(add-text page2div "(when ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color))")
 
-(set-style-left! page1div "800px")
-(set-style-left! page2div "800px")
+(set-style-left! page1div "10px")
+(set-style-left! page2div "10px")
 (set-style-top! page1div "10px")
 (set-style-top! page2div "320px")
 
