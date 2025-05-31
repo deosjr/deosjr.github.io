@@ -17,9 +17,11 @@ window.addEventListener("load", async () => {
           setZIndex(elem, value) { elem.style.zIndex = value },
           setLeft(elem, value) { elem.style.left = value },
           setTop(elem, value) { elem.style.top = value },
+          setPosition(elem, value) { elem.style.position = value },
           getZIndex(elem) { return elem.style.zIndex },
           getLeft(elem) { return elem.style.left },
           getTop(elem) { return elem.style.top },
+          getPosition(elem) { return elem.style.position },
           addEventListener(elem, name, f) { elem.addEventListener(name, f, true); },
           appendChild(parent, child) { return parent.appendChild(child); },
           offsetLeft(elem) { return elem.offsetLeft; },
@@ -27,7 +29,8 @@ window.addEventListener("load", async () => {
           getBoundingClientRect(elem) { return elem.getBoundingClientRect() },
           getX(elem) { return elem.x },
           getY(elem) { return elem.y },
-          getWidth(elem) { return elem.width }
+          getWidth(elem) { return elem.width },
+          getHeight(elem) { return elem.height }
         },
         event: {
 	  preventDefault(e) { e.preventDefault() },

@@ -110,6 +110,8 @@
 (define dynamicland (append-child! (get-element-by-id "table") (make-element "div")))
 (set-attribute! dynamicland "id" "dynamicland")
 
+(define papers (get-element-by-id "papers"))
+
 (define *pages* '())
 (define *procs* (make-hashtable))
 (define *divs* (make-hashtable))
@@ -126,7 +128,7 @@
     (set-attribute! div "class" "page")
     (set-attribute! div "id" (number->string id))
     (make-div-draggable div)
-    (append-child! dynamicland div) div))
+    (append-child! papers div) div))
 
 (define *mouse-down* #f)
 (define *mouse-offset-x* 0)
@@ -189,27 +191,22 @@
 (define (execute-page pid)
   ((hashtable-ref *procs* pid #f) pid))
 
-(define chInPx
-  (let ((div (make-element "div")))
-    (set-style! div "width:1ch;visibility:hidden")
-    (append-child! (document-body) div)
-    (let ((width (get-width (get-bounding-client-rect div))))
-      (remove-element div) width)))
-
-; hardcoded for now. table is 60x30ch, page is 10x10ch
 (define (on-table? pid)
   (let* ((div (hashtable-ref *divs* pid #f))
-         (stylex (get-left div))
-         (styley (get-top div))
-         (divx (string->number (substring stylex 0 (- (string-length stylex) 2)))) ;-ch
-         (divy (string->number (substring styley 0 (- (string-length styley) 2)))) ;-ch
-         (rect (get-bounding-client-rect dynamicland))
-         (rectx (get-x rect))
-         (recty (get-y rect)))
-    (and (> divx rectx)
-         (< (+ divx (* chInPx 10)) (+ rectx (* chInPx 60)))
-         (> divy recty)
-         (< (+ divy (* chInPx 10)) (+ recty (* chInPx 30))))))
+         (div-rect (get-bounding-client-rect div))
+         (divx (get-x div-rect))
+         (divy (get-y div-rect))
+         (div-width (get-width div-rect))
+         (div-height (get-height div-rect))
+         (table-rect (get-bounding-client-rect dynamicland))
+         (tablex (get-x table-rect))
+         (tabley (get-y table-rect))
+         (table-width (get-width table-rect))
+         (table-height (get-height table-rect)))
+    (and (> divx tablex)
+         (< (+ divx div-width) (+ tablex table-width))
+         (> divy tabley)
+         (< (+ divy div-height) (+ tabley table-height)))))
 
 (define (get-page pid)
   (hashtable-ref *divs* pid #f))
@@ -230,9 +227,15 @@
 (add-text page1div "(claim this 'highlighted \"red\")")
 (add-text page2div "(when ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color))")
 
-(set-style-left! page1div "10px")
-(set-style-left! page2div "10px")
-(set-style-top! page1div "10px")
-(set-style-top! page2div "320px")
-
 (recalculate-pages)
+
+(define *i* 1)
+(for-each (lambda (p) 
+  (let* ((page (get-page p))
+         (left-string (get-left page))
+         (str-len (string-length left-string))
+         (left (if (= str-len 0) 0
+                 (string->number (substring left-string 0 (- str-len 2)))))
+         (newleft (format #f "~apx" (+ left (* *i* 50)))))
+    (set! *i* (+ *i* 1))
+    (set-style-left! page newleft))) *pages*)

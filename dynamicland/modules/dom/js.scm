@@ -17,12 +17,15 @@
             set-style-left!
             set-style-top!
             set-z-index!
+            set-position!
             get-left
             get-top
             get-z-index
+            get-position
             get-x
             get-y
             get-width
+            get-height
             get-bounding-client-rect
             prevent-default
             first-touch))
@@ -78,6 +81,9 @@
 (define-foreign set-z-index!
   "element" "setZIndex"
   (ref null extern) (ref string) -> none)
+(define-foreign set-position!
+  "element" "setPosition"
+  (ref null extern) (ref string) -> none)
 (define-foreign get-left
   "element" "getLeft"
   (ref null extern) -> (ref string))
@@ -87,6 +93,9 @@
 (define-foreign get-z-index
   "element" "getZIndex"
   (ref null extern) -> (ref string))
+(define-foreign get-position
+  "element" "getPosition"
+  (ref null extern) -> (ref string))
 (define-foreign get-x
   "element" "getX"
   (ref null extern) -> i32)
@@ -95,6 +104,9 @@
   (ref null extern) -> i32)
 (define-foreign get-width
   "element" "getWidth"
+  (ref null extern) -> i32)
+(define-foreign get-height
+  "element" "getHeight"
   (ref null extern) -> i32)
 (define-foreign get-bounding-client-rect
   "element" "getBoundingClientRect"

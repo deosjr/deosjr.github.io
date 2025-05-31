@@ -1,13 +1,19 @@
+@media (max-width: 900px) {
+  main {
+	max-width: 600px;
+  }
+}
+
 main {
-	max-width: 70ch;
+	max-width: 800px;
 	padding: 2ch;
 	margin: auto;
 }
 
 #dynamicland {
 	border: solid;
-	width: 60ch;
-	height: 30ch;
+	width: 40rem;
+	height: 20rem;
 	font-size: 1rem;
 }
 
@@ -18,10 +24,8 @@ main {
 
 .page {
 	position: absolute;
-	left: 0px;
-	top: 0px;
-	width: 10ch;
-	height: 10ch;
+	width: 8rem;
+	height: 8rem;
 	background: white;
 	border: solid;
 	display: flex;
@@ -35,4 +39,10 @@ main {
 
 .page * {
 	font-size: 0.5rem;
+}
+
+.papers {
+	height: 10 rem;
+	display: flex;
+	justify-content: left;
 }
