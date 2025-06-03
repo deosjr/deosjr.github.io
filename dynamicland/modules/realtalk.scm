@@ -5,7 +5,7 @@
   #:use-module (datalog)
   #:use-module (hoot ffi)
   #:use-module (hoot hashtables)
-  #:export (claim wish when_
+  #:export (Claim Wish When
             add-page
             get-page
             get-pages
@@ -15,7 +15,7 @@
 ; RealTalk
 ; note: 'this' will have to be set within each page execution somehow?
 ; code to be executed is compiled in 'when' so we inject it there using (lambda (page) f ...)
-(define-syntax claim
+(define-syntax Claim
   (lambda (stx)
     (syntax-case stx ()
       ((_ id attr value)
@@ -24,7 +24,7 @@
              (dl-assert! (get-dl) this 'claims (list id attr value))
              (dl-assert! (get-dl) id attr value)))))))
 
-(define-syntax wish
+(define-syntax Wish
   (lambda (stx)
     (syntax-case stx ()
       ((_ x)
@@ -32,7 +32,7 @@
        #'(dl-assert! (get-dl) this 'wishes 'x))))))
 
 #|
-(define-syntax when
+(define-syntax When
   (lambda (stx)
     (syntax-case stx (wishes do)
     ((_ (condition ...) do statement ... )
@@ -43,9 +43,8 @@
            #'(dl-rule (code this (lambda (this) (begin statement ...))) :- (wishes someone w) ))))))
 |#
 
-; TODO: nameclash!
 ; the 'when' macro is like dl_rule, we can't use dl_rule directly because we need to have the (lambda (this) ..) part unescaped
-(define-syntax when_
+(define-syntax When
   (lambda (stx)
     (define (symbol-with-question-mark? s)
       (and (symbol? s)

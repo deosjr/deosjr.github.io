@@ -12,11 +12,11 @@
   ;(set! *testvar* (+ 1 *testvar*))
   ;(append-child! (get-page this) (make-text-node (format #f "~a" *testvar*)))
   ; the right way would be to declare *testvar* in this scope, but that currently _doesnt_ work
-  (claim this 'highlighted "red"))))
+  (Claim this 'highlighted "red"))))
 
 (define page2 (add-page (lambda (this) 
   ; confusing: conditions need logic vars to be unquoted, code does _not_
-  (when_ ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color)))))
+  (When ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color)))))
 
 (define page1div (get-page page1))
 (append-child! papers page1div)
@@ -26,8 +26,8 @@
   (let ((div (make-element "div")))
     (append-child! div (make-text-node text))
     (append-child! pagediv div)))
-(add-text page1div "(claim this 'highlighted \"red\")")
-(add-text page2div "(when ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color))")
+(add-text page1div "(Claim this 'highlighted \"red\")")
+(add-text page2div "(When ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color))")
 
 (recalculate-pages)
 
