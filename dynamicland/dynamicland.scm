@@ -13,17 +13,19 @@
   (lambda (stx)
     (syntax-case stx ()
       ((_ id attr value)
-       (with-syntax ((this (datum->syntax stx 'this)))
+       (with-syntax ((this (datum->syntax stx 'this))
+                     (dl (datum->syntax stx 'dl)))
          #'(begin
-             (dl_assert this 'claims (list id attr value))
-             (dl_assert id attr value)))))))
+             (dl-assert! dl this 'claims (list id attr value))
+             (dl-assert! dl id attr value)))))))
 
 (define-syntax wish
   (lambda (stx)
     (syntax-case stx ()
       ((_ x)
-       (with-syntax ((this (datum->syntax stx 'this)))
-       #'(dl_assert this 'wishes 'x))))))
+       (with-syntax ((this (datum->syntax stx 'this))
+                     (dl (datum->syntax stx 'dl)))
+       #'(dl-assert! dl this 'wishes 'x))))))
 
 #|
 (define-syntax when
@@ -31,10 +33,10 @@
     (syntax-case stx (wishes do)
     ((_ (condition ...) do statement ... )
        (with-syntax ((this (datum->syntax stx 'this)))
-           #'(dl_rule (code this (lambda (this) (begin statement ...))) :- condition ...)))
+           #'(dl-rule (code this (lambda (this) (begin statement ...))) :- condition ...)))
     ((_ someone wishes w do statement ... )
        (with-syntax ((this (datum->syntax stx 'this)))
-           #'(dl_rule (code this (lambda (this) (begin statement ...))) :- (wishes someone w) ))))))
+           #'(dl-rule (code this (lambda (this) (begin statement ...))) :- (wishes someone w) ))))))
 |#
 
 ; the 'when' macro is like dl_rule, we can't use dl_rule directly because we need to have the (lambda (this) ..) part unescaped
@@ -75,7 +77,8 @@
 
   (syntax-case stx (do)
     ((_ ((condition cx cy) ...) do statement ...)
-       (with-syntax ((this (datum->syntax stx 'this)))
+       (with-syntax ((this (datum->syntax stx 'this))
+                     (dl (datum->syntax stx 'dl)))
          (let* ((datums (syntax->datum #'((cx condition cy) ...)))
             (vars (remove-duplicates (collect-vars datums)))
             (numvars (+ 1 (length vars)))
@@ -84,28 +87,30 @@
             (st-datums (syntax->datum #'(statement ...)))
             (st-replaced (replace-symbols st-datums sym->gen))
             (replaced (replace-symbols datums sym->gen)))
-       #`(dl_assert_rule 
+       #`(dl-assert-rule! dl
            (let ((code `,(lambda (this #,@gens) (begin #,@st-replaced))))
-             (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q (list this 'code (cons code (list #,@gens)))) (dl_findo #,replaced) )))))))))))
+             (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q (list this 'code (cons code (list #,@gens)))) (dl-findo dl #,replaced) )))))))))))
 
-; redefine dl_fixpoint injecting code execution as result of rules
-(define (dl_fixpoint)
-  (set-idb! (make-hashtable))
-  (dl_fixpoint_iterate))
+; redefine dl-fixpoint! injecting code execution as result of rules
+(define dl (make-new-datalog))
 
-(define (dl_fixpoint_iterate)
-  (let* ((facts (map dl_apply_rule (get-rdb)))
+(define (dl-fixpoint! dl)
+  (set-datalog-idb! dl (make-hashtable))
+  (dl-fixpoint-iterate dl))
+
+(define (dl-fixpoint-iterate dl)
+  (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) (datalog-rdb dl)))
          (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
-         (new (hashtable-keys (set-difference factset (get-idb)))))
-    (set-extend! (get-idb) new)
-    (for-each dl_update_indices new)
+         (new (hashtable-keys (set-difference factset (datalog-idb dl)))))
+    (set-extend! (datalog-idb dl) new)
+    (for-each (lambda (fact) (dl-update-indices! dl fact)) new)
     ; result of dl_apply_rule should be a tuple (this 'code (proc . args))
     (for-each (lambda (c)
       (let ((this (car c))
             (proc (caaddr c))
             (args (cdaddr c)))
          (apply proc this args))) new)
-    (if (not (null? new)) (dl_fixpoint_iterate))))
+    (if (not (null? new)) (dl-fixpoint-iterate dl))))
 
 (define dynamicland (append-child! (get-element-by-id "table") (make-element "div")))
 (set-attribute! dynamicland "id" "dynamicland")
@@ -117,7 +122,7 @@
 (define *divs* (make-hashtable))
 
 (define (add-page proc)
-  (let ((pid (dl_record 'page ('code proc))))
+  (let ((pid (dl-record! dl 'page ('code proc))))
     (set! *pages* (cons pid *pages*))
     (hashtable-set! *procs* pid proc)
     (hashtable-set! *divs* pid (make-page-div pid)) pid))
@@ -181,12 +186,12 @@
     (set-z-index! pagediv z)
 ))
 
-; When a page is in view, its code is executed. Then when all pages have ran, dl_fixpoint runs all consequences.
+; When a page is in view, its code is executed. Then when all pages have ran, dl-fixpoint runs all consequences.
 (define (recalculate-pages)
   (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
-  (dl_reset)
+  (set! dl (make-new-datalog)) ; start with a fresh datalog instance
   (for-each execute-page (filter on-table? *pages*))
-  (dl_fixpoint))
+  (dl-fixpoint! dl))
 
 (define (execute-page pid)
   ((hashtable-ref *procs* pid #f) pid))
@@ -211,7 +216,13 @@
 (define (get-page pid)
   (hashtable-ref *divs* pid #f))
 
+(define *testvar* 0)
+
 (define page1 (add-page (lambda (this) 
+  ; this is an example of doing state over time the _wrong_ way, but it does work
+  ;(set! *testvar* (+ 1 *testvar*))
+  ;(append-child! (get-page this) (make-text-node (format #f "~a" *testvar*)))
+  ; the right way would be to declare *testvar* in this scope, but that currently _doesnt_ work
   (claim this 'highlighted "red"))))
 
 (define page2 (add-page (lambda (this) 

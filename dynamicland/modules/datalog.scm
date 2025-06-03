@@ -3,84 +3,89 @@
   #:use-module (minikanren)
   #:use-module (hoot ffi)
   #:use-module (hoot hashtables)
-  #:export (get-edb get-idb get-rdb set-idb!
-            dl_reset
-            dl_assert
-            dl_update_indices
-            dl_record
-            dl_find
-            dl_findo
-            dl_rule
-            dl_assert_rule
-            dl_apply_rule
-            dl_fixpoint
+  #:use-module (srfi srfi-9)
+  #:export (make-new-datalog
+            datalog?
+            datalog-idb
+            datalog-rdb
+            set-datalog-idb!
+            dl-assert!
+            dl-assert-rule!
+            dl-record!
+            dl-rule!
+            dl-apply-rule
+            dl-findo
+            dl-update-indices!
+            dl-fixpoint!
             foldl set-extend! set-difference)) ;  :(
 
-(define dl_edb (make-hashtable))
-(define dl_idb (make-hashtable))
-(define dl_rdb '())
-(define dl_idx_entity (make-hashtable))
-(define dl_idx_attr (make-hashtable))
+(define-record-type <datalog>
+  (make-datalog edb idb rdb idx-entity idx-attr counter)
+  datalog?
+  (edb        datalog-edb)
+  (idb        datalog-idb set-datalog-idb!)
+  (rdb        datalog-rdb set-datalog-rdb!)
+  (idx-entity datalog-idx-entity)
+  (idx-attr   datalog-idx-attr)
+  (counter    datalog-counter set-datalog-counter!))
 
-(define (get-edb) dl_edb)
-(define (get-idb) dl_idb)
-(define (get-rdb) dl_rdb)
-(define (set-idb! s) (set! dl_idb s))
+(define (make-new-datalog)
+  (make-datalog
+   (make-hashtable)   ; edb
+   (make-hashtable)   ; idb
+   '()                ; rdb
+   (make-hashtable)   ; idx-entity
+   (make-hashtable)   ; idx-attr
+   0))                ; counter
 
-(define dl_counter 0)
-(define (dl_nextID)
-   (set! dl_counter (+ dl_counter 1))
-   dl_counter)
+(define (dl-next-id! dl)
+  (let ((n (+ 1 (datalog-counter dl))))
+    (set-datalog-counter! dl n)
+    n))
 
-(define (dl_reset)
-  (set! dl_edb (make-hashtable))
-  (set! dl_idb (make-hashtable))
-  (set! dl_rdb '())
-  (set! dl_idx_entity (make-hashtable))
-  (set! dl_idx_attr (make-hashtable))
-  (set! dl_counter 0))
+(define (dl-assert! dl entity attr value)
+  (hashtable-set! (datalog-edb dl) (list entity attr value) #t)
+  (dl-update-indices! dl (list entity attr value)))
 
-(define (dl_assert entity attr value)
-  (hashtable-set! dl_edb (list entity attr value) #t)
-  (dl_update_indices (list entity attr value)))
-
-(define (dl_update_indices tuple)
+(define (dl-update-indices! dl tuple)
    (let ((entity (car tuple))
-         (attr (car (cdr tuple))))
-     (let ((m (hashtable-ref dl_idx_entity entity #f)))
+         (attr (cadr tuple))
+         (idx-entity (datalog-idx-entity dl))
+         (idx-attr (datalog-idx-attr dl)))
+     (let ((m (hashtable-ref idx-entity entity #f)))
        (if m (hashtable-set! m tuple #t)
          (let ((new (make-hashtable)))
-           (hashtable-set! dl_idx_entity entity new)
+           (hashtable-set! idx-entity entity new)
            (hashtable-set! new tuple #t))))
-     (let ((m (hashtable-ref dl_idx_attr attr #f)))
+     (let ((m (hashtable-ref idx-attr attr #f)))
        (if m (hashtable-set! m tuple #t)
          (let ((new (make-hashtable)))
-           (hashtable-set! dl_idx_attr attr new)
+           (hashtable-set! idx-attr attr new)
            (hashtable-set! new tuple #t))))))
 
-(define-syntax dl_record
+(define-syntax dl-record!
    (syntax-rules ()
-     ((_ type (attr value) ...) (let ((id (dl_nextID)))
-       (dl_assert id (list type attr) value) ... id))))
+     ((_ dl type (attr value) ...) (let ((id (dl-next-id! dl)))
+       (dl-assert! dl id (list type attr) value) ... id))))
 
 ; goal looks like: (fresh-vars 3 (lambda (q ?x ?y) (equalo q ?x) (dl_findo ( (,?x '(car speed) 4) ))))
-(define (dl_find goal) (runf* goal))
+(define (dl-find goal) (runf* goal)) ; goal already encapsulated dl
 
-(define-syntax dl_findo
+(define-syntax dl-findo
   (syntax-rules ()
-    ((_ (m ...)) (conj+ (dl_findo_ `m) ... ))))
+    ((_ dl (m ...)) (conj+ (dl-findo_ dl `m) ... ))))
 
-(define (dl_findo_ m)
+(define (dl-findo_ dl m)
    (fresh (x y entity attr db)
    (conso entity x m)
    (conso attr y x)
      (conde
-       [(boundo entity) (lookupo dl_idx_entity entity db) (membero m db)]
-       [(unboundo entity) (boundo attr) (lookupo dl_idx_attr attr db) (membero m db)] )))
+       [(boundo entity) (lookupo (datalog-idx-entity dl) entity db) (membero m db)]
+       [(unboundo entity) (boundo attr) (lookupo (datalog-idx-attr dl) attr db) (membero m db)] )))
 
 ; compiles the rule to a goal function
 ; here we need to find the ?vars and assert #`(fresh-vars #,num-vars (lambda (#,@vars) (conj (equalo q #,head) (dl_findo #,@body))))
-(define-syntax dl_rule
+(define-syntax dl-rule!
   (lambda (stx)
     (define (symbol-with-question-mark? s)
       (and (symbol? s)
@@ -116,7 +121,7 @@
       [else (datum->syntax stx datum)]))
 
   (syntax-case stx (:-)
-    ((_ (head hx hy) :- (body bx by) ...)
+    ((_ dl (head hx hy) :- (body bx by) ...)
      (let* ((datums (syntax->datum #'((hx head hy) (bx body by) ...)))
             (head-datum (car datums))
             (body-datums (cdr datums))
@@ -126,25 +131,25 @@
             (sym->gen (map cons vars gens))
             (replaced-head (replace-symbols head-datum sym->gen))
             (replaced-body (replace-symbols body-datums sym->gen)))
-       #`(dl_assert_rule (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q `#,replaced-head) (dl_findo #,replaced-body) )))))))))
+       #`(dl-assert-rule! dl (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q `#,replaced-head) (dl-findo dl #,replaced-body) )))))))))
 
-(define (dl_assert_rule rule)
-  (set! dl_rdb (cons rule dl_rdb)))
+(define (dl-assert-rule! dl rule)
+  (set-datalog-rdb! dl (cons rule (datalog-rdb dl))))
 
-(define (dl_fixpoint)
-  (set! dl_idb (make-hashtable))
-  (dl_fixpoint_iterate))
+(define (dl-fixpoint! dl)
+  (set-datalog-idb! dl (make-hashtable))
+  (dl-fixpoint-iterate dl))
 
-(define (dl_fixpoint_iterate)
-  (let* ((facts (map dl_apply_rule dl_rdb))
+(define (dl-fixpoint-iterate dl)
+  (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) (datalog-rdb dl)))
          (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
-         (new (hashtable-keys (set-difference factset dl_idb))))
-    (set-extend! dl_idb new)
-    (for-each dl_update_indices new)
-    (if (not (null? new)) (dl_fixpoint_iterate))))
+         (new (hashtable-keys (set-difference factset (datalog-idb dl)))))
+    (set-extend! (datalog-idb dl) new)
+    (for-each (lambda (fact) (dl-update-indices! dl fact)) new)
+    (if (not (null? new)) (dl-fixpoint-iterate dl))))
 
-(define (dl_apply_rule rule)
-  (dl_find rule))
+(define (dl-apply-rule dl rule)
+  (dl-find rule))
 
 #| HELPER FUNCTIONS |#
 (define (list->set x)
