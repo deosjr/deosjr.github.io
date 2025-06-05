@@ -14,9 +14,12 @@
             dl-record!
             dl-rule!
             dl-apply-rule
+            dl-find
             dl-findo
             dl-update-indices!
             dl-fixpoint!
+            dl-retract!
+            dl-retract-rule!
             foldl set-extend! set-difference)) ;  :(
 
 (define-record-type <datalog>
@@ -33,7 +36,7 @@
   (make-datalog
    (make-hashtable)   ; edb
    (make-hashtable)   ; idb
-   '()                ; rdb
+   (make-hashtable)   ; rdb
    (make-hashtable)   ; idx-entity
    (make-hashtable)   ; idx-attr
    0))                ; counter
@@ -134,14 +137,14 @@
        #`(dl-assert-rule! dl (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q `#,replaced-head) (dl-findo dl #,replaced-body) )))))))))
 
 (define (dl-assert-rule! dl rule)
-  (set-datalog-rdb! dl (cons rule (datalog-rdb dl))))
+  (hashtable-set! (datalog-rdb dl) rule #t))
 
 (define (dl-fixpoint! dl)
   (set-datalog-idb! dl (make-hashtable))
   (dl-fixpoint-iterate dl))
 
 (define (dl-fixpoint-iterate dl)
-  (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) (datalog-rdb dl)))
+  (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) (hashtable-keys (datalog-rdb dl))))
          (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
          (new (hashtable-keys (set-difference factset (datalog-idb dl)))))
     (set-extend! (datalog-idb dl) new)
@@ -150,6 +153,20 @@
 
 (define (dl-apply-rule dl rule)
   (dl-find rule))
+
+; todo: remove from edb? doesn't matter atm
+(define (dl-retract! dl tuple) 
+   (let ((entity (car tuple))
+         (attr (cadr tuple))
+         (idx-entity (datalog-idx-entity dl))
+         (idx-attr (datalog-idx-attr dl)))
+     (let ((m (hashtable-ref idx-entity entity #f)))
+       (if m (hashtable-delete! m tuple)))
+     (let ((m (hashtable-ref idx-attr attr #f)))
+       (if m (hashtable-delete! m tuple)))))
+
+(define (dl-retract-rule! dl rule) 
+  (hashtable-delete! (datalog-rdb dl) rule))
 
 #| HELPER FUNCTIONS |#
 (define (list->set x)

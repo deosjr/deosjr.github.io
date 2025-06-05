@@ -5,7 +5,7 @@
 (set-attribute! dynamicland "id" "dynamicland")
 (define papers (get-element-by-id "papers"))
 
-(define *testvar* 0)
+;(define *testvar* 0)
 
 (define page1 (add-page (lambda (this) 
   ; this is an example of doing state over time the _wrong_ way, but it does work
@@ -16,6 +16,10 @@
 
 (define page2 (add-page (lambda (this) 
   ; confusing: conditions need logic vars to be unquoted, code does _not_
+  ; confusing: reordering tuple in condition/statement is unhelpful
+  ; page-local state: this var is now live as long as this page is on a table
+  ;(define *testvar* 0)
+  ;(When ((highlighted ,?p ,?color)) do (append-child! (document-body) (make-text-node (format #f "VAR:~a" *testvar*))) (set! *testvar* (+ 1 *testvar*)) (set-background! (get-page ?p) ?color)))))
   (When ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color)))))
 
 (define page1div (get-page page1))

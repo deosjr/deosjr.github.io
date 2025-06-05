@@ -43,7 +43,7 @@
            #'(dl-rule (code this (lambda (this) (begin statement ...))) :- (wishes someone w) ))))))
 |#
 
-; the 'when' macro is like dl_rule, we can't use dl_rule directly because we need to have the (lambda (this) ..) part unescaped
+; the 'when' macro is like dl-rule, we can't use dl-rule directly because we need to have the (lambda (this) ..) part unescaped
 (define-syntax When
   (lambda (stx)
     (define (symbol-with-question-mark? s)
@@ -90,9 +90,11 @@
             (st-datums (syntax->datum #'(statement ...)))
             (st-replaced (replace-symbols st-datums sym->gen))
             (replaced (replace-symbols datums sym->gen)))
-       #`(dl-assert-rule! (get-dl)
-           (let ((code `,(lambda (this #,@gens) (begin #,@st-replaced))))
-             (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q (list this 'code (cons code (list #,@gens)))) (dl-findo (get-dl) #,replaced) )))))))))))
+       #`(begin
+           (let* ((code `,(lambda (this #,@gens) (begin #,@st-replaced)))
+                  (rule (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q (list this 'code (cons code (list #,@gens)))) (dl-findo (get-dl) #,replaced))))))
+             (dl-assert! (get-dl) this 'rules rule)
+             (dl-assert-rule! (get-dl) rule)))))))))
 
 ; TEMPORARY: we want to associate a table with a datalog instance, and inject the relevant one
 ; for now we hardcode a single instance
@@ -105,7 +107,7 @@
   (dl-fixpoint-iterate dl))
 
 (define (dl-fixpoint-iterate dl)
-  (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) (datalog-rdb dl)))
+  (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) (hashtable-keys (datalog-rdb dl))))
          (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
          (new (hashtable-keys (set-difference factset (datalog-idb dl)))))
     (set-extend! (datalog-idb dl) new)
@@ -121,6 +123,7 @@
 (define *pages* '())
 (define *procs* (make-hashtable))
 (define *divs* (make-hashtable))
+(define *page-locations* (make-hashtable))
 
 (define (get-page pid)
   (hashtable-ref *divs* pid #f))
@@ -136,7 +139,7 @@
     (hashtable-set! *divs* id div)
     (set-attribute! div "class" "page")
     (set-attribute! div "id" (number->string id))
-    (make-div-draggable div) div))
+    (make-div-draggable div id) div))
 
 (define (get-pages) *pages*)
 
@@ -144,43 +147,71 @@
 (define *mouse-offset-x* 0)
 (define *mouse-offset-y* 0)
 
-(define (make-div-draggable div)
-  (add-event-listener! div "mousedown" (procedure->external (lambda (e)
-    (set-z-index! div "1")
-    (set! *mouse-offset-x* (- (offset-left div) (mouse-x e)))
-    (set! *mouse-offset-y* (- (offset-top div) (mouse-y e)))
-    (set! *mouse-down* #t))))
-  (add-event-listener! div "mouseup" (procedure->external (lambda (e)
+(define (div-on-press div e)
+  (set-z-index! div "1")
+  (set! *mouse-offset-x* (- (offset-left div) (mouse-x e)))
+  (set! *mouse-offset-y* (- (offset-top div) (mouse-y e)))
+  (set! *mouse-down* #t))
+
+(define (div-on-release div e)
     (set-z-index! div "0")
-    (recalculate-pages)	; for now, only recalculate after having dragged a page
-    (set! *mouse-down* #f))))
+    (recalculate-pages)
+    (set! *mouse-down* #f))
+
+(define (div-on-move div pid e first-e)
+  (prevent-default e)
+  (if *mouse-down* (begin
+    (set-z-index! div "1")
+    (set-style-left! div (format #f "~apx" (+ (mouse-x first-e) *mouse-offset-x*)))
+    (set-style-top! div (format #f "~apx" (+ (mouse-y first-e) *mouse-offset-y*)))
+    (let* ((table (get-element-by-id "table"))
+           (on-table ((on-table? table) pid))
+           (last-known-location (hashtable-ref *page-locations* pid #f)))
+      (if (and on-table (not last-known-location))
+        (begin
+          (hashtable-set! *page-locations* pid table)
+          (page-moved-onto-table table pid))
+        (if (and (not on-table) last-known-location)
+          (begin
+            (hashtable-delete! *page-locations* pid) ; assumes single table in dom
+            (page-moved-from-table table pid))))))))
+
+(define (make-div-draggable div pid)
+  (add-event-listener! div "mousedown" (procedure->external (lambda (e)
+    (div-on-press div e))))
+  (add-event-listener! div "mouseup" (procedure->external (lambda (e)
+    (div-on-release div e))))
   (add-event-listener! div "mousemove" (procedure->external (lambda (e)
-    (prevent-default e)
-    (if *mouse-down* (begin
-      ; too slow! todo: check when page moves in/out of table bounds
-      ;(recalculate-pages)
-      (set-z-index! div "1")
-      (set-style-left! div (format #f "~apx" (+ (mouse-x e) *mouse-offset-x*)))
-      (set-style-top! div (format #f "~apx" (+ (mouse-y e) *mouse-offset-y*))))))))
+    (div-on-move div pid e e))))
 ; duplicate for touch events
   (add-event-listener! div "touchstart" (procedure->external (lambda (e)
-    (set-z-index! div "1")
-    (set! *mouse-offset-x* (- (offset-left div) (mouse-x (first-touch e))))
-    (set! *mouse-offset-y* (- (offset-top div) (mouse-y (first-touch e))))
-    (set! *mouse-down* #t))))
+    (div-on-press div (first-touch e)))))
   (add-event-listener! div "touchend" (procedure->external (lambda (e)
-    (set-z-index! div "0")
-    (recalculate-pages)	; for now, only recalculate after having dragged a page
-    (set! *mouse-down* #f))))
+    (div-on-release div e))))
   (add-event-listener! div "touchmove" (procedure->external (lambda (e)
-    (prevent-default e)
-    (if *mouse-down* (begin
-      ; too slow! todo: check when page moves in/out of table bounds
-      ;(recalculate-pages)
-      (set-z-index! div "1")
-      (set-style-left! div (format #f "~apx" (+ (mouse-x (first-touch e)) *mouse-offset-x*)))
-      (set-style-top! div (format #f "~apx" (+ (mouse-y (first-touch e)) *mouse-offset-y*)))))))))
+    (div-on-move div pid e (first-touch e))))))
 
+; only run page code when newly in bounds of table
+(define (page-moved-onto-table table pid)
+  (execute-page pid)
+  (recalculate-pages))
+
+; then retract all 'this claims x' and 'this rules x' from dl-db when newly out of table bounds
+(define (page-moved-from-table table pid)
+  (let (( claims (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid claims ,x) ))))))
+        ( wishes (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid wishes ,x) ))))))
+        ( rules  (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid rules ,x) )))))))
+    (for-each (lambda (claim) (dl-retract! dl claim)) claims)
+    (for-each (lambda (claim) (dl-retract! dl `(,pid claims ,claim))) claims)
+    (for-each (lambda (wish) (dl-retract! dl `(,pid wishes ,wish))) wishes)
+    (for-each (lambda (rule) (dl-retract-rule! dl rule)) rules)
+    (for-each (lambda (rule) (dl-retract! dl `(,pid rules ,rule))) rules))
+  (recalculate-pages))
+
+; NOTE: idea, discarded (reversible effects):
+; effects will need to be explicitly undone. This needs reversible effects, and the reverse-function can perhaps also use the dl-db?
+; instead of resetting all pages each loop, we can run all reverse-effects caused by a paper that just left the table
+; reverse of set-background! would be set-background! to "", for example. fixpoint should run after to mitigate clashes, theyre undefined anyways
 (define (reset-page-style! pagediv)
   (let ((left (get-left pagediv))
         (top (get-top pagediv))
@@ -188,17 +219,19 @@
     (set-style! pagediv "")
     (set-style-left! pagediv left)
     (set-style-top! pagediv top)
-    (set-z-index! pagediv z)
-))
+    (set-z-index! pagediv z)))
 
 ; When a page is in view, its code is executed. Then when all pages have ran, dl-fixpoint runs all consequences.
 ; assumes a single table for now, a div with id "table"
+; TODO: keep a mapping of tables->pages, and only run a page when it is newly detected on a table
+; when a page is removed from the table, retract all when-rules it introduced and all claims/wishes it asserted into that tables' datalog instance.
+; then remove all derived facts and run fixpoint analysis again. This way we can encapsulate state in page code!
+; NOTE: there are no derived facts!!! only followup claims/rules. we can query datalog to get all claims/rules asserted by a page as we run a closure over 'this' when creating rule lambda
 (define (recalculate-pages)
-  (let ((table (get-element-by-id "table")))
-    (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
-    (set! dl (make-new-datalog)) ; start with a fresh datalog instance
-    (for-each execute-page (filter (on-table? table) *pages*))
-    (dl-fixpoint! dl)))
+  (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
+  ; todo: do we need to reset dl-idb ?
+  ; currently rules execute each time a page is moved, which is not what I'd expect
+  (dl-fixpoint! dl))
 
 (define (execute-page pid)
   ((hashtable-ref *procs* pid #f) pid))
