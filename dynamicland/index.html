@@ -14,15 +14,35 @@
       Chrome.
     </p>
     <h2>Adventures in Dynamicland</h2>
+    <div class=img-crop>
+      <img src="https://i.imgur.com/WCRBWNa.jpeg">
+    </div>
     <p>This page runs on Scheme->WebAssembly using <a href="https://spritely.institute/hoot/">Hoot</a>.
 	It implements a reverse-engineered RealTalk, the logic engine behind Bret Victor's <a href="https://dynamicland.org/">Dynamicland</a>.
 	The purpose of this page is to document the implementation for people like me who want to build their own.</p>
     <p>Notably this page goes against some of the design principles of Dynamicland: it is not intended to be a replacement in any way.
 	But Dynamicland is not publicly available, and Oakland is pretty far away.
 	So with apologies to Bret, let's have a look at RealTalk as I've reverse engineered it and explore some of its concepts.</p>
+    <div id=pages class="pages"></div>
+    <p>Try dragging the pages above onto the table below!</p>
     <p id=table class="table"></p>
-    <p>Try dragging the papers below onto the table above!</p>
-    <p id=papers class="papers"></p>
+    <p>Instead of paper pages, this page uses HTML divs.
+       I will use them to illustrate some of RealTalk's behaviour as we build it up.
+       Each page is associated with some code that is active when the page is contained within the table div.
+       Follow the links below to learn how all of this works: I promise it is more interesting than 'if both pages are on the table, colour one of them red'.</p>
+    <nav>
+    <h2>Table of Contents</h2>
+    <ul>
+    <li><a href="/dynamicland/todo.html">Webcams, projectors and scripting languages (todo)</a></li>
+    <li><a href="/dynamicland/todo.html">Datalog in Minikanren (todo)</a></li>
+    <li><a href="/dynamicland/todo.html">RealTalk: hacking Datalog (todo)</a>
+      <ul>
+        <li><a href="/dynamicland/todo.html">A naive first approximation (todo)</a></li>
+        <li><a href="/dynamicland/todo.html">Page persistence and variable scoping(todo)</a></li>
+      </ul>
+    </li>
+    </ul>
+    </nav>
     </main>
   </body>
 </html>

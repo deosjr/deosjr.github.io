@@ -3,7 +3,7 @@
 
 (define dynamicland (append-child! (get-element-by-id "table") (make-element "div")))
 (set-attribute! dynamicland "id" "dynamicland")
-(define papers (get-element-by-id "papers"))
+(define pages (get-element-by-id "pages"))
 
 ;(define *testvar* 0)
 
@@ -23,9 +23,9 @@
   (When ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color)))))
 
 (define page1div (get-page page1))
-(append-child! papers page1div)
+(append-child! pages page1div)
 (define page2div (get-page page2))
-(append-child! papers page2div)
+(append-child! pages page2div)
 (define (add-text pagediv text)
   (let ((div (make-element "div")))
     (append-child! div (make-text-node text))
@@ -35,13 +35,5 @@
 
 (recalculate-pages)
 
-(define *i* 1)
-(for-each (lambda (p) 
-  (let* ((page (get-page p))
-         (left-string (get-left page))
-         (str-len (string-length left-string))
-         (left (if (= str-len 0) 0
-                 (string->number (substring left-string 0 (- str-len 2)))))
-         (newleft (format #f "~apx" (+ left (* *i* 50)))))
-    (set! *i* (+ *i* 1))
-    (set-style-left! page newleft))) (get-pages))
+(set-style-left! page1div "30vw")
+(set-style-left! page2div "62vw")

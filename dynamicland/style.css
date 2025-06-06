@@ -2,6 +2,13 @@
   main {
 	max-width: 600px;
   }
+  .img-crop img {
+	max-width: 500px;
+  }
+}
+
+h2 {
+	text-align: center;
 }
 
 main {
@@ -10,10 +17,26 @@ main {
 	margin: auto;
 }
 
+.img-crop {
+	height: 400px;
+	overflow: hidden;
+}
+
+.img-crop img {
+	max-width: 600px;
+	padding: 2ch;
+	margin: 0 auto;
+	display: block;
+	height: 900px;
+	object-fit: cover;
+	object-position: center;
+	transform: translateY(-300px);
+}
+
 #dynamicland {
 	border: solid;
-	width: 40rem;
-	height: 20rem;
+	width: 60vw;
+	height: 20vh;
 	font-size: 1rem;
 }
 
@@ -24,8 +47,8 @@ main {
 
 .page {
 	position: absolute;
-	width: 8rem;
-	height: 8rem;
+	width: 8vh;
+	height: 8vh;
 	background: white;
 	border: solid;
 	display: flex;
@@ -41,8 +64,15 @@ main {
 	font-size: 0.5rem;
 }
 
-.papers {
-	height: 10 rem;
-	display: flex;
-	justify-content: left;
+.pages {
+	height: 10vh;
+}
+
+nav a {
+	display: block;
+	text-decoration: none;
+}
+
+nav a:hover {
+	text-decoration: underline;
 }
