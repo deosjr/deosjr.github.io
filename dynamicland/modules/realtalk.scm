@@ -160,21 +160,24 @@
 
 (define (div-on-move div pid e first-e)
   (prevent-default e)
-  (if *mouse-down* (begin
-    (set-z-index! div "1")
-    (set-style-left! div (format #f "~apx" (+ (mouse-x first-e) *mouse-offset-x*)))
-    (set-style-top! div (format #f "~apx" (+ (mouse-y first-e) *mouse-offset-y*)))
-    (let* ((table (get-element-by-id "table"))
-           (on-table ((on-table? table) pid))
-           (last-known-location (hashtable-ref *page-locations* pid #f)))
-      (if (and on-table (not last-known-location))
-        (begin
-          (hashtable-set! *page-locations* pid table)
-          (page-moved-onto-table table pid))
-        (if (and (not on-table) last-known-location)
+  (if *mouse-down*
+    (let ((newleft (+ (mouse-x first-e) *mouse-offset-x*))
+          (newtop (+ (mouse-y first-e) *mouse-offset-y*)))
+      (set-z-index! div "1")
+      (set-style-left! div (format #f "~apx" newleft))
+      (set-style-top! div (format #f "~apx" newtop))
+      (let* ((table (get-element-by-id "table"))
+             (on-table ((on-table? table) pid))
+             (last-known-location (hashtable-ref *page-locations* pid #f)))
+        (if on-table (update-page-geometry pid div))
+        (if (and on-table (not last-known-location))
           (begin
-            (hashtable-delete! *page-locations* pid) ; assumes single table in dom
-            (page-moved-from-table table pid))))))))
+            (hashtable-set! *page-locations* pid table)
+            (page-moved-onto-table table pid))
+          (if (and (not on-table) last-known-location)
+            (begin
+              (hashtable-delete! *page-locations* pid) ; assumes single table in dom
+              (page-moved-from-table table pid))))))))
 
 (define (make-div-draggable div pid)
   (add-event-listener! div "mousedown" (procedure->external (lambda (e)
@@ -190,6 +193,30 @@
     (div-on-release div e))))
   (add-event-listener! div "touchmove" (procedure->external (lambda (e)
     (div-on-move div pid e (first-touch e))))))
+
+; make page div dimensions known in datalog
+(define (update-page-geometry pid div)
+  (let* ((div (hashtable-ref *divs* pid #f))
+         (div-rect (get-bounding-client-rect div))
+         (divx (get-x div-rect))
+         (divy (get-y div-rect))
+         (div-width (get-width div-rect))
+         (div-height (get-height div-rect)))
+    (retract-page-geometry pid)
+    (dl-assert! dl pid '(page left) divx)
+    (dl-assert! dl pid '(page top) divy)
+    (dl-assert! dl pid '(page width) div-width)
+    (dl-assert! dl pid '(page height) div-height)))
+
+(define (retract-page-geometry pid)
+  (let (( left (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page left) ,x) ))))))
+        ( top (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page top) ,x) ))))))
+        ( width (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page width) ,x) ))))))
+        ( height (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page height) ,x) )))))))
+    (if (not (null? left)) (dl-retract! dl `(,pid (page left) ,(car left))))
+    (if (not (null? top)) (dl-retract! dl `(,pid (page top) ,(car top))))
+    (if (not (null? width)) (dl-retract! dl `(,pid (page width) ,(car width))))
+    (if (not (null? height)) (dl-retract! dl `(,pid (page height) ,(car height))))))
 
 ; only run page code when newly in bounds of table
 (define (page-moved-onto-table table pid)

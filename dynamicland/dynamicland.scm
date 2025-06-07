@@ -1,8 +1,6 @@
 (use-modules (dom js)
              (realtalk))
 
-(define dynamicland (append-child! (get-element-by-id "table") (make-element "div")))
-(set-attribute! dynamicland "id" "dynamicland")
 (define pages (get-element-by-id "pages"))
 
 ;(define *testvar* 0)
@@ -20,7 +18,12 @@
   ; page-local state: this var is now live as long as this page is on a table
   ;(define *testvar* 0)
   ;(When ((highlighted ,?p ,?color)) do (append-child! (document-body) (make-text-node (format #f "VAR:~a" *testvar*))) (set! *testvar* (+ 1 *testvar*)) (set-background! (get-page ?p) ?color)))))
-  (When ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color)))))
+  (When ((highlighted ,?p ,?color)
+         ((page left) ,this ,?thisleft)
+         ((page left) ,?p ,?thatleft))
+   do (if (and (< ?thisleft ?thatleft)
+               (< 100 (- ?thatleft ?thisleft)))
+        (set-background! (get-page ?p) ?color))))))
 
 (define page1div (get-page page1))
 (append-child! pages page1div)
@@ -30,8 +33,8 @@
   (let ((div (make-element "div")))
     (append-child! div (make-text-node text))
     (append-child! pagediv div)))
-(add-text page1div "(Claim this 'highlighted \"red\")")
-(add-text page2div "(When ((highlighted ,?p ,?color)) do (set-background! (get-page ?p) ?color))")
+(add-text page1div "#1")
+(add-text page2div "#2")
 
 (recalculate-pages)
 

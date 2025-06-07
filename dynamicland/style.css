@@ -33,16 +33,12 @@ main {
 	transform: translateY(-300px);
 }
 
-#dynamicland {
+.table {
 	border: solid;
 	width: 60vw;
 	height: 20vh;
 	font-size: 1rem;
-}
-
-.table {
-	display: flex;
-	justify-content: center;
+	margin: auto;
 }
 
 .page {
@@ -61,7 +57,7 @@ main {
 }
 
 .page * {
-	font-size: 0.5rem;
+	font-size: 2rem;
 }
 
 .pages {
@@ -75,4 +71,9 @@ nav a {
 
 nav a:hover {
 	text-decoration: underline;
+}
+
+.code {
+	white-space: pre-wrap;
+	background: rgba(0, 0, 0, .03);
 }

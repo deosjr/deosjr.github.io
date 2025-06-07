@@ -23,6 +23,21 @@
     <p>Notably this page goes against some of the design principles of Dynamicland: it is not intended to be a replacement in any way.
 	But Dynamicland is not publicly available, and Oakland is pretty far away.
 	So with apologies to Bret, let's have a look at RealTalk as I've reverse engineered it and explore some of its concepts.</p>
+    <p>Here are two pages. Their associated code is shown below.</p>
+    <h3>Page 1:</h3>
+    <div class=code>(Claim this 'highlighted "red")</div>
+    <h3>Page 2:</h3>
+    <div class=code>
+  (When ((highlighted ,?p ,?color)
+         ((page left) ,this ,?thisleft)
+         ((page left) ,?p ,?thatleft))
+   do (if (and (< ?thisleft ?thatleft)
+               (< 100 (- ?thatleft ?thisleft)))
+        (set-background! (get-page ?p) ?color))))))
+    </div>
+    <p>Meaning, page 1 asserts a claim: it should be highlighted red!
+       Page 2 introduces a rule: if a page claims to be a certain color, then set its background to that color, but only if that page is more than 100px to the right of page 2.
+       Pages only exist if they are contained within the bounds of the table, and can only assert claims/rules for as long as they exist.</p>
     <div id=pages class="pages"></div>
     <p>Try dragging the pages above onto the table below!</p>
     <p id=table class="table"></p>
