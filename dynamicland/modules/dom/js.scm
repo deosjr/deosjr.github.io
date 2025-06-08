@@ -16,10 +16,12 @@
             set-style!
             set-style-left!
             set-style-top!
+            set-style-transform!
             set-z-index!
             set-position!
             get-left
             get-top
+            get-transform
             get-z-index
             get-position
             get-x
@@ -28,7 +30,9 @@
             get-height
             get-bounding-client-rect
             prevent-default
-            first-touch))
+            first-touch
+            focus
+            get-key))
 
 (define-foreign document-body
     "document" "body"
@@ -78,6 +82,9 @@
 (define-foreign set-style-top!
   "element" "setTop"
   (ref null extern) (ref string) -> none)
+(define-foreign set-style-transform!
+  "element" "setTransform"
+  (ref null extern) (ref string) -> none)
 (define-foreign set-z-index!
   "element" "setZIndex"
   (ref null extern) (ref string) -> none)
@@ -89,6 +96,9 @@
   (ref null extern) -> (ref string))
 (define-foreign get-top
   "element" "getTop"
+  (ref null extern) -> (ref string))
+(define-foreign get-transform
+  "element" "getTransform"
   (ref null extern) -> (ref string))
 (define-foreign get-z-index
   "element" "getZIndex"
@@ -117,3 +127,9 @@
 (define-foreign first-touch
   "event" "firstTouch"
   (ref null extern) -> (ref null extern))
+(define-foreign focus
+  "element" "focus"
+  (ref null extern) -> none)
+(define-foreign get-key
+  "event" "getKey"
+  (ref null extern) -> (ref string))

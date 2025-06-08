@@ -17,10 +17,12 @@ window.addEventListener("load", async () => {
           setZIndex(elem, value) { elem.style.zIndex = value },
           setLeft(elem, value) { elem.style.left = value },
           setTop(elem, value) { elem.style.top = value },
+          setTransform(elem, value) { elem.style.transform = value },
           setPosition(elem, value) { elem.style.position = value },
           getZIndex(elem) { return elem.style.zIndex },
           getLeft(elem) { return elem.style.left },
           getTop(elem) { return elem.style.top },
+          getTransform(elem) { return elem.style.transform },
           getPosition(elem) { return elem.style.position },
           addEventListener(elem, name, f) { elem.addEventListener(name, f, true); },
           appendChild(parent, child) { return parent.appendChild(child); },
@@ -30,13 +32,15 @@ window.addEventListener("load", async () => {
           getX(elem) { return elem.x },
           getY(elem) { return elem.y },
           getWidth(elem) { return elem.width },
-          getHeight(elem) { return elem.height }
+          getHeight(elem) { return elem.height },
+          focus(elem) { elem.focus(); }
         },
         event: {
-	  preventDefault(e) { e.preventDefault() },
+          preventDefault(e) { e.preventDefault() },
           mouseX(e) { return e.clientX },
           mouseY(e) { return e.clientY },
-	  firstTouch(e) { return e.changedTouches[0] }
+          firstTouch(e) { return e.changedTouches[0] },
+          getKey(e) { return e.key }
         }
       }});
   } catch(e) {

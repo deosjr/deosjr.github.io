@@ -12,6 +12,8 @@
             get-dl
             recalculate-pages))
 
+(define pi 3.141592653589793)
+
 ; RealTalk
 ; note: 'this' will have to be set within each page execution somehow?
 ; code to be executed is compiled in 'when' so we inject it there using (lambda (page) f ...)
@@ -138,8 +140,11 @@
   (let ((div (make-element "div")))
     (hashtable-set! *divs* id div)
     (set-attribute! div "class" "page")
+    (set-attribute! div "tabindex" "0")
     (set-attribute! div "id" (number->string id))
-    (make-div-draggable div id) div))
+    (set-style-transform! div "rotate(0rad)")
+    (make-div-draggable div id)
+    (make-div-focusable div id) div))
 
 (define (get-pages) *pages*)
 
@@ -194,6 +199,15 @@
   (add-event-listener! div "touchmove" (procedure->external (lambda (e)
     (div-on-move div pid e (first-touch e))))))
 
+(define (make-div-focusable div pid)
+  (add-event-listener! div "mouseenter" (procedure->external (lambda (e)
+    (focus div))))
+  (add-event-listener! div "keydown" (procedure->external (lambda (e)
+    (let ((key (string-ref (get-key e) 0))
+          (rot (* 0.1 pi)))
+      (if (eq? key #\e) (update-page-rotation div pid (- rot))
+      (if (eq? key #\q) (update-page-rotation div pid rot))))))))
+
 ; make page div dimensions known in datalog
 (define (update-page-geometry pid div)
   (let* ((div (hashtable-ref *divs* pid #f))
@@ -217,6 +231,13 @@
     (if (not (null? top)) (dl-retract! dl `(,pid (page top) ,(car top))))
     (if (not (null? width)) (dl-retract! dl `(,pid (page width) ,(car width))))
     (if (not (null? height)) (dl-retract! dl `(,pid (page height) ,(car height))))))
+
+; assumption: style.transform format is 'rotate(<DEGREES>rad)'
+(define (update-page-rotation div pid n)
+  (let* ((str (get-transform div))
+         (rad-str (substring str 7 (- (string-length str) 4)))
+         (radians (string->number rad-str)))
+    (set-style-transform! div (format #f "rotate(~arad)" (+ radians n)))))
 
 ; only run page code when newly in bounds of table
 (define (page-moved-onto-table table pid)
@@ -242,10 +263,12 @@
 (define (reset-page-style! pagediv)
   (let ((left (get-left pagediv))
         (top (get-top pagediv))
+        (transform (get-transform pagediv))
         (z (get-z-index pagediv)))
     (set-style! pagediv "")
     (set-style-left! pagediv left)
     (set-style-top! pagediv top)
+    (set-style-transform! pagediv transform)
     (set-z-index! pagediv z)))
 
 ; When a page is in view, its code is executed. Then when all pages have ran, dl-fixpoint runs all consequences.
