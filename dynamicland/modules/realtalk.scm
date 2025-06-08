@@ -205,8 +205,8 @@
   (add-event-listener! div "keydown" (procedure->external (lambda (e)
     (let ((key (string-ref (get-key e) 0))
           (rot (* 0.1 pi)))
-      (if (eq? key #\e) (update-page-rotation div pid (- rot))
-      (if (eq? key #\q) (update-page-rotation div pid rot))))))))
+      (if (eq? key #\q) (update-page-rotation div pid (- rot))
+      (if (eq? key #\e) (update-page-rotation div pid rot))))))))
 
 ; make page div dimensions known in datalog
 (define (update-page-geometry pid div)
@@ -233,11 +233,21 @@
     (if (not (null? height)) (dl-retract! dl `(,pid (page height) ,(car height))))))
 
 ; assumption: style.transform format is 'rotate(<DEGREES>rad)'
-(define (update-page-rotation div pid n)
+(define (get-div-rotation div)
   (let* ((str (get-transform div))
-         (rad-str (substring str 7 (- (string-length str) 4)))
-         (radians (string->number rad-str)))
-    (set-style-transform! div (format #f "rotate(~arad)" (+ radians n)))))
+         (rad-str (substring str 7 (- (string-length str) 4))))
+    (string->number rad-str)))
+
+(define (update-page-rotation div pid n)
+  (let* ((div-rotation (get-div-rotation div))
+         (table (get-element-by-id "table"))
+         (on-table ((on-table? table) pid)))
+    (set-style-transform! div (format #f "rotate(~arad)" (+ (get-div-rotation div) n)))
+    (if on-table
+      (let ((rotation (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page rotation) ,x) )))))))
+        (if (not (null? rotation)) (dl-retract! dl `(,pid (page rotation) ,(car rotation))))
+        (dl-assert! dl pid '(page rotation) div-rotation)
+        (recalculate-pages)))))
 
 ; only run page code when newly in bounds of table
 (define (page-moved-onto-table table pid)
