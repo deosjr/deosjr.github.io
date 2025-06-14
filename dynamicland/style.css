@@ -33,6 +33,22 @@ main {
 	transform: translateY(-300px);
 }
 
+.img-crop2 {
+	height: 400px;
+	overflow: hidden;
+}
+
+.img-crop2 img {
+	max-width: 600px;
+	padding: 2ch;
+	margin: 0 auto;
+	display: block;
+	height: 600px;
+	object-fit: cover;
+	object-position: center;
+	transform: translateY(-100px);
+}
+
 .table {
 	border: solid;
 	width: 60vw;
