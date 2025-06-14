@@ -39,13 +39,11 @@
 (set-style-left! page2div "40vw")
 
 ; bonus page! cycles through colors based on rotation
-(define pi 3.141592653589793)
-
 (define page3 (add-page (lambda (this)
   (Claim this 'prismatic #t)
   (When ((prismatic ,?p #t)
-         ((page rotation) ,?p ,?radians))
-   do (set-background! (get-page ?p) (format #f "hsl(~a, 100%, 50%)" (* 360 (/ ?radians (* 2 pi))) ))))))
+         ((page rotation) ,?p ,?degrees))
+   do (set-background! (get-page ?p) (format #f "hsl(~a, 100%, 50%)" ?degrees ))))))
 (define page3div (get-page page3))
 (append-child! pages page3div)
 (set-style-left! page3div "50vw")

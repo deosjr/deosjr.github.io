@@ -12,8 +12,6 @@
             get-dl
             recalculate-pages))
 
-(define pi 3.141592653589793)
-
 ; RealTalk
 ; note: 'this' will have to be set within each page execution somehow?
 ; code to be executed is compiled in 'when' so we inject it there using (lambda (page) f ...)
@@ -142,7 +140,7 @@
     (set-attribute! div "class" "page")
     (set-attribute! div "tabindex" "0")
     (set-attribute! div "id" (number->string id))
-    (set-style-transform! div "rotate(0rad)")
+    (set-style-transform! div "rotate(0deg)")
     (make-div-draggable div id)
     (make-div-focusable div id) div))
 
@@ -204,7 +202,7 @@
     (focus div))))
   (add-event-listener! div "keydown" (procedure->external (lambda (e)
     (let ((key (string-ref (get-key e) 0))
-          (rot (* 0.1 pi)))
+          (rot 15))
       (if (eq? key #\q) (update-page-rotation div pid (- rot))
       (if (eq? key #\e) (update-page-rotation div pid rot))))))))
 
@@ -232,17 +230,17 @@
     (if (not (null? width)) (dl-retract! dl `(,pid (page width) ,(car width))))
     (if (not (null? height)) (dl-retract! dl `(,pid (page height) ,(car height))))))
 
-; assumption: style.transform format is 'rotate(<DEGREES>rad)'
+; assumption: style.transform format is 'rotate(<DEGREES>deg)'
 (define (get-div-rotation div)
   (let* ((str (get-transform div))
-         (rad-str (substring str 7 (- (string-length str) 4))))
-    (string->number rad-str)))
+         (deg-str (substring str 7 (- (string-length str) 4))))
+    (string->number deg-str)))
 
 (define (update-page-rotation div pid n)
   (let* ((div-rotation (get-div-rotation div))
          (table (get-element-by-id "table"))
          (on-table ((on-table? table) pid)))
-    (set-style-transform! div (format #f "rotate(~arad)" (+ (get-div-rotation div) n)))
+    (set-style-transform! div (format #f "rotate(~adeg)" (modulo (+ (get-div-rotation div) n) 360) ))
     (if on-table
       (let ((rotation (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page rotation) ,x) )))))))
         (if (not (null? rotation)) (dl-retract! dl `(,pid (page rotation) ,(car rotation))))
