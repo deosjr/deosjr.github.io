@@ -1,6 +1,6 @@
 window.addEventListener("load", async () => {
   try {
-    await Scheme.load_main("dynamicland.wasm", {
+    await Scheme.load_main("whiskers.wasm", {
       reflect_wasm_dir: ".",
       user_imports: {
         document: {

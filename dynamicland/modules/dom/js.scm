@@ -8,6 +8,7 @@
             make-element
             set-attribute!
             set-background!
+            add-class!
             add-event-listener!
             mouse-x
             mouse-y
@@ -57,6 +58,9 @@
     (ref null extern) (ref string) (ref string) -> none)
 (define-foreign set-background!
     "element" "setBackground"
+    (ref null extern) (ref string) -> none)
+(define-foreign add-class!
+    "element" "addClass"
     (ref null extern) (ref string) -> none)
 (define-foreign add-event-listener!
   "element" "addEventListener"
