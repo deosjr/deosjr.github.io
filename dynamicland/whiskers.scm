@@ -5,9 +5,8 @@
 
 (define page1 (add-page (lambda (this)
   (Claim this 'has-whiskers #t)
-  ; TODO: declare what happens when pointing at a page, ie maybe color it
-  ; this effect has to live at 'how to point' logic because nested When/Claim doesnt work yet
-  ; (When ((points-at ,this ,?p)) do (set-background! (get-page ?p) "red"))
+  ; declare what happens when pointing at a page, ie maybe color it
+  (When ((points-at ,this ,?p)) do (set-background! (get-page ?p) "red"))
 )))
 
 (define page2 (add-page (lambda (this)
@@ -19,25 +18,37 @@
 (define page3 (add-page (lambda (this)
   ; declare what it means to point at smth
   ; makes a hard assumption on styling, i.e. whiskers extend for 50px
-  ; NOTE: this fires for every page, since we can't calculate in the db atm!
+
+  ; NOTE: this is a workaround for nested macro-expansion breaking atm
+  (define (claim-pointer-at p point)
+    (Claim p 'pointer-at point))
+  (define (claim-point-at p q)
+    (Claim p 'points-at q))
+
   (When ((has-whiskers ,?p #t)
          ((page left) ,?p ,?x)
          ((page top) ,?p ,?y)
-         ((page width) ,?p ,?width)
+         ((page width) ,?p ,?width))
 	; TODO: angle?
+   do (let* ((w (/ ?width 2))
+             (px (+ ?x w))
+             (py (- ?y 50)))
+         (claim-pointer-at ?p (cons px py)) ))
+
+  ; NOTE: this fires for every page, since we can't calculate in the db atm!
+  (When ((pointer-at ,?p ,?point)
          ((page left) ,?q ,?qx)
          ((page top) ,?q ,?qy)
          ((page width) ,?q ,?qw)
          ((page height) ,?q ,?qh))
-   do (let* ((w (/ ?width 2))
-             (px (+ ?x w))
-             (py (- ?y 50)))
+	; TODO: angle?
+   do (let ((px (car ?point))
+            (py (cdr ?point)))
         (if (and (> px ?qx)
                  (< px (+ ?qx ?qw))
                  (> py ?qy)
                  (< py (+ ?qy ?qh)))
-           (begin
-           (set-background! (get-page ?q) "red")))))
+           (claim-point-at ?p ?q))))
      ; TODO: nested Claim in When does not work!
      ; TODO: nested When in When does double macro hygiene var substitution, which will break
      ; TODO: solution could be to do all of this in a single substituting macro's scope?
@@ -48,6 +59,8 @@
 ; NOTE that using css class this way goes against Dynamicland principles in the following ways:
 ; - the class::before style has to be defined up front
 ; - the class::before style can not be modified (unless the stylesheet itself is brought into scope)
+
+; TODO: Claims are not cleaned up! pointer-at lingers, so you can 'point at' yourself now
 
 (define page1div (get-page page1))
 (append-child! pages page1div)
