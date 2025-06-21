@@ -3,19 +3,19 @@
 
 (define pages (get-element-by-id "pages"))
 
-(define page1 (add-page (lambda (this)
+(define page1 (add-page (make-page-code
   (Claim this 'has-whiskers #t)
   ; declare what happens when pointing at a page, ie maybe color it
   (When ((points-at ,this ,?p)) do (set-background! (get-page ?p) "red"))
 )))
 
-(define page2 (add-page (lambda (this)
+(define page2 (add-page (make-page-code
   ; declare how to 'draw' whiskers ie add css class
   (When ((has-whiskers ,?p #t)) do
     (add-class! (get-page ?p) "whisker"))
 )))
 
-(define page3 (add-page (lambda (this)
+(define page3 (add-page (make-page-code
   ; declare what it means to point at smth
   ; makes a hard assumption on styling, i.e. whiskers extend for 50px
 

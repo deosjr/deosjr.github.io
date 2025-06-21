@@ -5,14 +5,14 @@
 
 ;(define *testvar* 0)
 
-(define page1 (add-page (lambda (this) 
+(define page1 (add-page (make-page-code
   ; this is an example of doing state over time the _wrong_ way, but it does work
   ;(set! *testvar* (+ 1 *testvar*))
   ;(append-child! (get-page this) (make-text-node (format #f "~a" *testvar*)))
   ; the right way would be to declare *testvar* in this scope, but that currently _doesnt_ work
   (Claim this 'highlighted "red"))))
 
-(define page2 (add-page (lambda (this) 
+(define page2 (add-page (make-page-code
   ; confusing: conditions need logic vars to be unquoted, code does _not_
   ; confusing: reordering tuple in condition/statement is unhelpful
   ; page-local state: this var is now live as long as this page is on a table
@@ -39,7 +39,7 @@
 (set-style-left! page2div "40vw")
 
 ; bonus page! cycles through colors based on rotation
-(define page3 (add-page (lambda (this)
+(define page3 (add-page (make-page-code
   (Claim this 'prismatic #t)
   (When ((prismatic ,?p #t)
          ((page rotation) ,?p ,?degrees))

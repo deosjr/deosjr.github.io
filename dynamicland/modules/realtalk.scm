@@ -6,6 +6,7 @@
   #:use-module (hoot ffi)
   #:use-module (hoot hashtables)
   #:export (Claim Wish When
+            make-page-code
             add-page
             get-page
             get-pages
@@ -95,6 +96,13 @@
                   (rule (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q (list this 'code (cons code (list #,@gens)))) (dl-findo (get-dl) #,replaced))))))
              (dl-assert! (get-dl) this 'rules rule)
              (dl-assert-rule! (get-dl) rule)))))))))
+
+(define-syntax make-page-code
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ body ...)
+       (with-syntax ((this (datum->syntax stx 'this)))
+         #'(lambda (this) body ...))))))
 
 ; TEMPORARY: we want to associate a table with a datalog instance, and inject the relevant one
 ; for now we hardcode a single instance
