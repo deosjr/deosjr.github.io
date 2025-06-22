@@ -284,6 +284,7 @@
         (top (get-top pagediv))
         (transform (get-transform pagediv))
         (z (get-z-index pagediv)))
+    (set-attribute! pagediv "class" "page")
     (set-style! pagediv "")
     (set-style-left! pagediv left)
     (set-style-top! pagediv top)

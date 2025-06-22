@@ -14,8 +14,90 @@
       Chrome.
     </p>
     <h2>Whiskers</h2>
+    <p>Here are three pages. See if you can figure out what they do.
+       Try to make a guess before reading on (where I will explain).</p>
     <div id=pages class="pages"></div>
     <p id=table class="table" style="height:60vh;"></p>
+    <p>Hopefully you found that only when all three pages are live we get some interesting effect:
+       when page #1 points at another page, that page turns red as long as page #1 keeps pointing at it!
+       But as soon as one of the pages is removed, none of this functionality remains.
+       There are however a few hints as to how each page is built up.</p>
+    <p>First and foremost, page #1 has a line drawn from the top.
+       In keeping with Dynamicland terminology I have called this a whisker (hence the name of this article).
+       Whiskers are a visual aid drawn using some CSS: they have no functionality of their own.
+       We can add the 'whisker' class to any div to give it this visual.</p>
+    <div class=code>
+.whisker::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 50%;
+	width: 2px;
+	height: 50px;
+	background: black;
+	transform: translateX(-50%) translateY(-100%);
+}
+    </div>
+    <p>This is nice and concise, and we will use it for now, but note that it is not very hackable: pages would have to hack into the global stylesheet in order to change what a whisker looks like.
+    For this demonstration however it will work just fine.</p>
+    <p>Page #1 declares that it wants to have a whisker and what happens if it points at something else.
+       It does not, however, understand or explain how having a whisker leads to the point-at relation.</p>
+    <div class=code>
+(define page1 (add-page (make-page-code
+  (Wish this 'has-whiskers #t)
+
+  (When ((points-at ,this ,?p)) do
+    (set-background! (get-page ?p) "red")))))
+    </div>
+    <p>It is page #2 that manages the concept of having whiskers and how to draw them.
+       In a future version, this page would have code to draw the visuals.</p>
+    <div class=code>
+(define page2 (add-page (make-page-code
+  (When ((wishes ,?p (,?p has-whiskers ,#t))) do
+    (Claim ?p 'has-whiskers #t))
+
+  (When ((has-whiskers ,?p #t)) do
+    (add-class! (get-page ?p) "whisker")))))
+    </div>
+    <p>As I am currently struggling with Claims embedded in Wishes, the actual code looks slightly different at the moment.
+       The above is what it will look like once I add some more macro magic.
+       Page #2 is compatible with the concept of distinguishing between top-level and embedded Claims: it turns a top-level Wish into an embedded Claim.
+       The way my version of RealTalk is set up now is that each iteration all derived facts are removed such that only facts that can still be derived remain, that is, they are simply derived again.
+       Top-level Claims assert facts that remain as long as the page remains, but embedded Claims are cleaned up every iteration of Datalog fixpoint analysis.
+       This way when we move a page, the point it pointed at before does not linger as a Claim, which would allow page #1 to colour itself if we move it up!</p>
+       <p>Page 3 is the page that explains the relation between having a whisker and pointing at another page, via the concept of pointing at a certain pixel coordinate.
+          It breaks this up into two separate When rules:</p>
+    <div class=code>
+(define page3 (add-page (make-page-code
+  (When ((has-whiskers ,?p #t)
+         ((page left) ,?p ,?x)
+         ((page top) ,?p ,?y)
+         ((page width) ,?p ,?width))
+   do (let* ((w (/ ?width 2))
+             (px (+ ?x w))
+             (py (- ?y 50)))
+         (Claim ?p pointer-at (cons px py))))
+
+  (When ((pointer-at ,?p ,?point)
+         ((page left) ,?q ,?qx)
+         ((page top) ,?q ,?qy)
+         ((page width) ,?q ,?qw)
+         ((page height) ,?q ,?qh))
+   do (let ((px (car ?point))
+            (py (cdr ?point)))
+        (if (and (> px ?qx)
+                 (< px (+ ?qx ?qw))
+                 (> py ?qy)
+                 (< py (+ ?qy ?qh)))
+           (Claim ?p points-at ?q)))))))
+    </div>
+    <p>The first rule calculates the coordinate we 'point' at, and the second rule tries to find pages that contain that coordinate within their bounding box.
+       This is quite inefficient: each iteration we will attempt to calculate this for each page, as each page has matching facts about their geometry.
+       The calculation only happens as a result of the match.
+       As you can see reasoning about the rotation of the page is still left to do, so pages currently always point upwards even if their whisker is drawn sideways!</p>
+    <p>This demonstrates a couple of neat interactions between pages that are made possible by the RealTalk system.
+       It is a powerful expressive system that makes it easy to encode some pretty complex behaviour.</p>
+    <p><a href="/dynamicland">Home</a></p>
     </main>
   </body>
 </html>

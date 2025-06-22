@@ -6,12 +6,20 @@
 (define pages (get-element-by-id "pages"))
 
 (define page1 (add-page (make-page-code
-  (Claim this 'has-whiskers #t)
+  (Wish this 'has-whiskers #t)
   ; declare what happens when pointing at a page, ie maybe color it
   (When ((points-at ,this ,?p)) do (set-background! (get-page ?p) "red"))
 )))
 
 (define page2 (add-page (make-page-code
+  ; workaround (see below)
+  (define (claim-has-whiskers p)
+    (Claim p 'has-whiskers #t))
+
+  ; fulfill a page's wish to have whiskers
+  (When ((wishes ,?p (,?p has-whiskers ,#t))) do
+    (claim-has-whiskers ?p))
+
   ; declare how to 'draw' whiskers ie add css class
   (When ((has-whiskers ,?p #t)) do
     (add-class! (get-page ?p) "whisker"))
@@ -67,8 +75,6 @@
 ; NOTE that using css class this way goes against Dynamicland principles in the following ways:
 ; - the class::before style has to be defined up front
 ; - the class::before style can not be modified (unless the stylesheet itself is brought into scope)
-
-; TODO: Claims are not cleaned up! pointer-at lingers, so you can 'point at' yourself now
 
 (define page1div (get-page page1))
 (append-child! pages page1div)
