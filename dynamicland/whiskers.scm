@@ -1,5 +1,7 @@
 (use-modules (dom js)
-             (realtalk))
+             (datalog)
+             (realtalk)
+             (hoot hashtables))
 
 (define pages (get-element-by-id "pages"))
 
@@ -20,9 +22,15 @@
   ; makes a hard assumption on styling, i.e. whiskers extend for 50px
 
   ; NOTE: this is a workaround for nested macro-expansion breaking atm
+  ; The hashtable-set! part is a workaround for cleaning up derived facts:
+  ; There should probably be a difference between top-level Claims and nested Claims.
+  ; top-level is asserted/retracted with the page entering/leaving the scene
+  ; nested Claims are treated as derived facts and need to be derived every fixpoint iteration
   (define (claim-pointer-at p point)
+    (hashtable-set! (datalog-idb (get-dl)) `(,p pointer-at ,point) #t)
     (Claim p 'pointer-at point))
   (define (claim-point-at p q)
+    (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
     (Claim p 'points-at q))
 
   (When ((has-whiskers ,?p #t)

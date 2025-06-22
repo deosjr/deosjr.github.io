@@ -113,6 +113,7 @@
 
 ; redefine dl-fixpoint! injecting code execution as result of rules
 (define (dl-fixpoint! dl)
+  (for-each (lambda (fact) (dl-retract! dl fact)) (hashtable-keys (datalog-idb dl)))
   (set-datalog-idb! dl (make-hashtable))
   (dl-fixpoint-iterate dl))
 
