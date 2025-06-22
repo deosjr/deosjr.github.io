@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="style.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  </head>
+  <body>
+    <main>
+    <p id="wasm-error" hidden="true">
+      A browser with Wasm GC and tail call support is required for
+      this demo.  We recommend using either Mozilla Firefox or Google
+      Chrome.
+    </p>
+    <h2>RealTalkOS</h2>
+    <div class=code>
+(define (reset-page-style! pagediv)
+  (let ((left (get-left pagediv))
+        (top (get-top pagediv))
+        (transform (get-transform pagediv))
+        (z (get-z-index pagediv)))
+    (set-style! pagediv "")
+    (set-style-left! pagediv left)
+    (set-style-top! pagediv top)
+    (set-style-transform! pagediv transform)
+    (set-z-index! pagediv z)))
+    </div>
+    <p>Our RealTalkOS so far solves this by resetting each page every loop.
+       This is inefficient but simple, and therefore a good starting point.
+       One area I am still investigating is how to accurately handle effects over time.
+       In my first version I simply deleted the Datalog db every iteration and built it up again!
+       That results in pages not able to reason about variables over time unless the capture global vars in a closure, something that goes against the entire Dynamicland model.
+       The way we have set things up now pages only run their top-level code once and introduce Claims / When-rules once, and it is dl-fixpoint that runs repeatedly.
+       I imagine properly distinguishing between top-level Claims and derived Claims and effects will go a long way here.
+    </main>
+  </body>
+</html>

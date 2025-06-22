@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="style.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  </head>
+  <body>
+    <main>
+    <p id="wasm-error" hidden="true">
+      A browser with Wasm GC and tail call support is required for
+      this demo.  We recommend using either Mozilla Firefox or Google
+      Chrome.
+    </p>
+    <h2>RealTalk</h2>
+    <p>Having implemented some kind of Datalog, we are now ready to look at RealTalk.
+       RealTalk is the DSL that lets users script pages in Dynamicland.
+       The rest of the code powering Dynamicland I'll refer to as RealTalkOS, which includes the computer vision code to recognise pages from webcam output and the code to project images back onto those physical pages by way of a projector.</p>
+
+       <p>A really good description of RealTalk can be found here: 
+       <a href="https://omar.website/posts/notes-from-dynamicland-geokit/realtalk-cheat-sheet.png">RealTalk Cheat Sheet</a>.
+       It was created by <a href="https://x.com/telogram">Tabitha Young</a> and hosted by <a href="https://x.com/rsnous">Omar Rizwan</a>, known for his <a href="folk.computer">Folk Computer</a> project.
+       This page is the starting point of a deep dive into the semantics of RealTalk as interpreted by me, mainly based on the Dynamicland website, Youtube videos and blogs by Omar and others.</p>
+    <p>The main components are the three instructions Claim, Wish and When.
+       We are going to use Scheme as our scripting language, and the idea behind the implementation is to write Claim, Wish and When as macros, rewriting to Datalog instructions.
+       Pages will have code associated to them that executes whenever they are recognised on a Dynamicland surface (such as a table).
+       They assert facts and rules that are live as long as the page is on the surface.
+       As a simple example, a Claim is just an assertion of a fact:</p>
+    <div class=code>
+(define-syntax Claim
+  (syntax-rules ()
+    ((_ id attr value)
+     (dl-assert! (get-dl) id attr value))))
+    </div>
+    <p>We can treat a wish very similar, just asserting that something has wished for something:</p>
+    <div class=code>
+(define-syntax Wish
+  (syntax-rules ()
+    ((_ id attr value)
+     (dl-assert! (get-dl) this 'wishes `(,id ,attr ,value)))))
+    </div>
+    <p>Here we hit our first snag! We would like to know who wished for something, but we would like the page identifier to be implicit.
+     This is going to be a major theme that requires a lot of understanding of macro hygiene that frankly I am still working on.
+     I expect to update the implementation to change quite a few times.
+     So far, here's how I have solved this problem:
+    <div class=code>
+(define-syntax make-page-code
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ body ...)
+       (with-syntax ((this (datum->syntax stx 'this)))
+         #'(lambda (this) body ...))))))
+
+(define-syntax Wish
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ id attr value)
+       (with-syntax ((this (datum->syntax stx 'this)))
+         #'(dl-assert! (get-dl) this 'wishes (list id attr value)))))))
+    </div>
+    <p>Using syntax-case instead of syntax-rules, we can capture the 'this' symbol from an outer scope and have 'this' written in the macro refer to that.
+    The make-page-code macro inserts it and sets up the expectation that page code is always ran with the page identifier as a parameter.
+    This setup also allows for the user to write 'this' in their code and have it work as expected, referring to the page itself..</p>
+    <p>We can change Claim in a similar manner and add another assertion like Wish.
+    This will make it easier for us to later find what Claims a page has made, in order to retract them.</p>
+    <div class=code>
+(define-syntax Claim
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ id attr value)
+       (with-syntax ((this (datum->syntax stx 'this)))
+         #'(begin
+             (dl-assert! (get-dl) this 'claims (list id attr value))
+             (dl-assert! (get-dl) id attr value)))))))
+    </div>
+    <p>We saved the When macro for last because it is way more involved than the other two.
+    Instead of asserting a fact, When adds a rule to the database.
+    The behaviour we are after is that users can add arbitrary code as a consequence of When and that this code executes whenever the conditions of When are met.
+    These consequences can include further Claims and Wishes, and maybe Whens?
+    This will be a separate explainer at some point, as embedding macros leads to new issues).</p>
+    <p>Every once in a while the whole state of claims and rules needs to be reevaluated, which is also a big enough topic to warrant its own section.
+    We can start by assuming that we have a trigger whenever a page is moved.
+    In the browser we can implement this trivially with a mousemove event.
+    This should somehow trigger Datalog's fixpoint analysis, which in our case runs a naive algorithm attempting to find new facts until it finds nothing new.</p>
+    <p>To implement RealTalk we are going to hack into the internals of our Datalog and make one crucial change: whenever a new fact is found, we will assume it is a piece of code that we can execute!
+    <div class=code>
+(define (dl-fixpoint! dl)
+  (set-datalog-idb! dl (make-hashtable))
+  (dl-fixpoint-iterate dl))
+
+(define (dl-fixpoint-iterate dl)
+  (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule))
+                         (hashtable-keys (datalog-rdb dl))))
+         (factset (foldl (lambda (x y) (set-extend! y x))
+                                 facts (make-hashtable)))
+         (new (hashtable-keys (set-difference factset (datalog-idb dl)))))
+    (set-extend! (datalog-idb dl) new)
+    (for-each (lambda (fact) (dl-update-indices! dl fact)) new)
+
+    ; result of dl_apply_rule should be a tuple (this 'code (proc . args))
+    (for-each (lambda (c)
+      (let ((this (car c))
+            (proc (caaddr c))
+            (args (cdaddr c)))
+         (apply proc this args))) new)
+    (if (not (null? new)) (dl-fixpoint-iterate dl))))
+    </div>
+    <p>We will base our implementation of When on the Datalog macro dl-rule! that we built before.
+      It replaces variables starting with a question mark with new hygienic copies and asserts a rule, which is a compiled miniKanren query.
+      Here is just the end of it, followed by the end of the When macro. Most of the lead up to it is the same:</p>
+    <div class=code>
+; modules/datalog:dl-rule!
+#`(dl-assert-rule! dl (fresh-vars #,numvars
+    (lambda (q #,@gens)
+      (conj (equalo q `#,replaced-head)
+            (dl-findo dl #,replaced-body) )))))))))
+
+; modules/realtalk:When
+#`(begin
+    (let* ((code `,(lambda (this #,@gens) (begin #,@replaced-statements)))
+           (rule (fresh-vars #,numvars (lambda (q #,@gens)
+                   ; construct expected tuple output
+                   (conj (equalo q (list this 'code (cons code (list #,@gens))))
+                         (dl-findo (get-dl) #,replaced-conditions))))))
+      (dl-assert! (get-dl) this 'rules rule)
+      (dl-assert-rule! (get-dl) rule)))))))))
+    </div>
+    <p>There are still things to solve here, but this version can already do some powerful things.
+       For example, we can now write the following to define a page:</p>
+    <div class=code>
+(define page3 (add-page (make-page-code
+  (Claim this 'prismatic #t)
+  (When ((prismatic ,?p #t)
+         ((page rotation) ,?p ,?degrees))
+   do (set-background! (get-page ?p) (format #f "hsl(~a, 100%, 50%)" ?degrees ))))))
+    </div>
+    <p>This page depends on a few features of the RealTalkOS we haven't discussed yet.
+       One thing it does is keep an updates list of facts about page geometry in the Datalog db by retracting/asserting facts whenever pages move.
+       There are facts available about a page's top left x and y coordinates, its dimensions as width/height, and its rotation.</p>
+    <p>This page starts by claiming it is 'prismatic', whatever that means.
+       Note that since we only support binary relations, we use the dummy value of #t to assert a valid fact.
+       This Claim will be asserted only once when the page enters the table and is retracted when it leaves.</p>
+    <p>Next the page introduces a rule: whenever a page p is prismatic, and we can find a fact about the rotation of that same page p,
+       we want to execute some effect setting its background to a color that depends on the rotation we found.
+       This rule is asserted and retracted like a Claim, but it fires whenever a match can be find.
+       If multiple pages are prismatic, this rule fires multiple times every time we run dl-fixpoint!</p>
+    <p>The set-background! function is a foreign function call to Javascript.
+       It expects a div as input, hence the get-page function to get the div associated to the page identifier ?p.
+       We use CSS styling to do our drawing and projecting equivalent for us.
+       The main problem with that is that this is permanent: effects linger.
+       We can only rely on set-background to overwrite styles for so long (and clashes are undefined in behaviour).
+       At some point we need to undo effects that are only supposed to happen conditionally.</p>
+    <p>Thusfar we have talked a lot about the exciting scripting possibilities of RealTalk, but in order to make anything happen we need to be able to do things like move pages, rotate them, and figure out where they are.
+       A lot of this is exactly why Dynamicland in the browser goes against most of what the project is aiming to achieve: computation in the real world.
+       One of my favourite things about Dynamicland is this idea that reality gives you so much for free: moving or rotating pieces of paper in the real world does not require any programming!
+       Unfortunately I do want to approximate some of this in the browser as I want to share my excitement with people that are not going to watch a video or visit Oakland.
+       We've already seen some of the features that RealTalkOS provides.
+       The next article goes into a lot more detail on RealTalkOS, which handles the basic infrastructure that RealTalk takes for granted.
+
+    <p><a href="/dynamicland/datalog">Previous: Datalog</a> - <a href="/dynamicland">Home</a> - <a href="/dynamicland/realtalkos">Next: RealTalkOS</a></p>
+    </main
+  </body>
+</html>

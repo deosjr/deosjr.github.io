@@ -134,7 +134,10 @@
             (sym->gen (map cons vars gens))
             (replaced-head (replace-symbols head-datum sym->gen))
             (replaced-body (replace-symbols body-datums sym->gen)))
-       #`(dl-assert-rule! dl (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q `#,replaced-head) (dl-findo dl #,replaced-body) )))))))))
+       #`(dl-assert-rule! dl (fresh-vars #,numvars
+           (lambda (q #,@gens)
+             (conj (equalo q `#,replaced-head)
+                   (dl-findo dl #,replaced-body) )))))))))
 
 (define (dl-assert-rule! dl rule)
   (hashtable-set! (datalog-rdb dl) rule #t))

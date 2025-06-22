@@ -28,9 +28,9 @@
 (define-syntax Wish
   (lambda (stx)
     (syntax-case stx ()
-      ((_ x)
+      ((_ id attr value)
        (with-syntax ((this (datum->syntax stx 'this)))
-       #'(dl-assert! (get-dl) this 'wishes 'x))))))
+       #'(dl-assert! (get-dl) this 'wishes (list id attr value)))))))
 
 #|
 (define-syntax When
@@ -89,11 +89,13 @@
             (gens (generate-temporaries vars))
             (sym->gen (map cons vars gens))
             (st-datums (syntax->datum #'(statement ...)))
-            (st-replaced (replace-symbols st-datums sym->gen))
-            (replaced (replace-symbols datums sym->gen)))
+            (replaced-statements (replace-symbols st-datums sym->gen))
+            (replaced-conditions (replace-symbols datums sym->gen)))
        #`(begin
-           (let* ((code `,(lambda (this #,@gens) (begin #,@st-replaced)))
-                  (rule (fresh-vars #,numvars (lambda (q #,@gens) (conj (equalo q (list this 'code (cons code (list #,@gens)))) (dl-findo (get-dl) #,replaced))))))
+           (let* ((code `,(lambda (this #,@gens) (begin #,@replaced-statements)))
+                  (rule (fresh-vars #,numvars (lambda (q #,@gens)
+                          (conj (equalo q (list this 'code (cons code (list #,@gens))))
+                                (dl-findo (get-dl) #,replaced-conditions))))))
              (dl-assert! (get-dl) this 'rules rule)
              (dl-assert-rule! (get-dl) rule)))))))))
 

@@ -42,6 +42,7 @@
 
 (dl-fixpoint! dl)
 (define query (dl-find dl ,?id where (,?id reachable ,?id)))
+(display query)          ; prints (3 1 4), i.e. (c a d)
     </div>
 
     <p>This is roughly the syntax that I want to go for, minus some of the commas (or unquotes) that I did not get rid of.
@@ -256,6 +257,8 @@
     <p>This should print (3 1 4) or a permutation thereof, order depending on the hash-table implementation.
        As a bonus, this page implements and runs all of the above using Guile Scheme and WebAssembly!
        The result of running all of this should be printed below:</p>
-  <div class=code id=dl-output></div>
+    <div class=code id=dl-output></div>
+    <p><a href="/dynamicland">Home</a> - <a href="/dynamicland/realtalk">Next: RealTalk</a></p>
+    </main>
   </body>
 </html>
