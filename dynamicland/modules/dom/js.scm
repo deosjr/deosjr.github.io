@@ -18,6 +18,7 @@
             set-style-left!
             set-style-top!
             set-style-transform!
+            set-inner-html!
             set-z-index!
             set-position!
             get-left
@@ -33,6 +34,7 @@
             prevent-default
             first-touch
             focus
+            query-selector
             get-key))
 
 (define-foreign document-body
@@ -89,6 +91,9 @@
 (define-foreign set-style-transform!
   "element" "setTransform"
   (ref null extern) (ref string) -> none)
+(define-foreign set-inner-html!
+  "element" "setInnerHTML"
+  (ref null extern) (ref string) -> none)
 (define-foreign set-z-index!
   "element" "setZIndex"
   (ref null extern) (ref string) -> none)
@@ -134,6 +139,9 @@
 (define-foreign focus
   "element" "focus"
   (ref null extern) -> none)
+(define-foreign query-selector
+  "element" "querySelector"
+  (ref null extern) (ref string) -> (ref null extern))
 (define-foreign get-key
   "event" "getKey"
   (ref null extern) -> (ref string))

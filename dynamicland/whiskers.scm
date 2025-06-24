@@ -76,12 +76,29 @@
 ; - the class::before style has to be defined up front
 ; - the class::before style can not be modified (unless the stylesheet itself is brought into scope)
 
+; debug page: print known facts claimed by pointed-at page next to it
+(define page4 (add-page (make-page-code
+  (Wish this 'has-whiskers #t)
+  (When ((points-at ,this ,?p))
+   do (let* ((dl (get-dl))
+             (idx (datalog-idx-entity dl))
+             (facts (hashtable-keys (hashtable-ref idx ?p #f)))
+             (text-div (make-element "div")))
+         (set-attribute! text-div "class" "text-right")
+         (for-each (lambda (fact)
+           (let ((p (make-element "p")))
+             (append-child! p (make-text-node (format #f "~a" fact)))
+             (append-child! text-div p))) facts)
+         (append-child! (query-selector (get-page ?p) ".content") text-div))))))
+
 (define page1div (get-page page1))
 (append-child! pages page1div)
 (define page2div (get-page page2))
 (append-child! pages page2div)
 (define page3div (get-page page3))
 (append-child! pages page3div)
+(define page4div (get-page page4))
+(append-child! pages page4div)
 (define (add-text pagediv text)
   (let ((div (make-element "div")))
     (append-child! div (make-text-node text))
@@ -89,8 +106,10 @@
 (add-text page1div "#1")
 (add-text page2div "#2")
 (add-text page3div "#3")
+(add-text page4div "#4")
 (set-style-left! page1div "30vw")
 (set-style-left! page2div "40vw")
 (set-style-left! page3div "50vw")
+(set-style-left! page4div "60vw")
 
 (recalculate-pages)

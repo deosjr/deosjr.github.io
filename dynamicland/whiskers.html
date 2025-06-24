@@ -14,7 +14,8 @@
       Chrome.
     </p>
     <h2>Whiskers</h2>
-    <p>Here are three pages. See if you can figure out what they do.
+    <p>Here are four pages. See if you can figure out what the first three do by dragging them onto the table below.
+       If you are stuck, you can try using the fourth page as a hint.
        Try to make a guess before reading on (where I will explain).</p>
     <div id=pages class="pages"></div>
     <p id=table class="table" style="height:60vh;"></p>
@@ -96,7 +97,24 @@
        The calculation only happens as a result of the match.
        As you can see reasoning about the rotation of the page is still left to do, so pages currently always point upwards even if their whisker is drawn sideways!</p>
     <p>This demonstrates a couple of neat interactions between pages that are made possible by the RealTalk system.
-       It is a powerful expressive system that makes it easy to encode some pretty complex behaviour.</p>
+       It is a powerful expressive system that makes it easy to encode some pretty complex behaviour.
+       Page four, in case you are wondering, prints all the facts currently claimed by a page next to it.
+       Here is its full implementation:</p>
+    <div class=code>
+(define page4 (add-page (make-page-code
+  (Wish this 'has-whiskers #t)
+  (When ((points-at ,this ,?p))
+   do (let* ((dl (get-dl))
+             (idx (datalog-idx-entity dl))
+             (facts (hashtable-keys (hashtable-ref idx ?p #f)))
+             (text-div (make-element "div")))
+         (set-attribute! text-div "class" "text-right")
+         (for-each (lambda (fact)
+           (let ((p (make-element "p")))
+             (append-child! p (make-text-node (format #f "~a" fact)))
+             (append-child! text-div p))) facts)
+         (append-child! (query-selector (get-page ?p) ".content") text-div))))))
+    </div>
     <p><a href="/dynamicland">Home</a></p>
     </main>
   </body>

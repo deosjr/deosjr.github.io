@@ -140,10 +140,15 @@
   (hashtable-ref *divs* pid #f))
 
 (define (add-page proc)
-  (let ((pid (dl-record! dl 'page ('code proc))))
+  (let* ((pid (dl-record! dl 'page ('code proc)))
+         (div (make-page-div pid))
+         (innerdiv (make-element "div")))
     (set! *pages* (cons pid *pages*))
     (hashtable-set! *procs* pid proc)
-    (hashtable-set! *divs* pid (make-page-div pid)) pid))
+    (hashtable-set! *divs* pid div)
+    (set-attribute! innerdiv "class" "content")
+    (append-child! div innerdiv)
+    pid))
 
 (define (make-page-div id)
   (let ((div (make-element "div")))
@@ -289,6 +294,7 @@
     (set-style-left! pagediv left)
     (set-style-top! pagediv top)
     (set-style-transform! pagediv transform)
+    (set-inner-html! (query-selector pagediv ".content") "")
     (set-z-index! pagediv z)))
 
 ; When a page is in view, its code is executed. Then when all pages have ran, dl-fixpoint runs all consequences.

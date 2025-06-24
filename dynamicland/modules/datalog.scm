@@ -8,6 +8,8 @@
             datalog?
             datalog-idb
             datalog-rdb
+            datalog-idx-entity
+            datalog-idx-attr
             set-datalog-idb!
             dl-assert!
             dl-assert-rule!

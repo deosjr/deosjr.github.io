@@ -76,7 +76,7 @@ main {
 	box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.5);
 }
 
-.page * {
+.page content {
 	font-size: 2rem;
 }
 
@@ -108,4 +108,13 @@ nav a:hover {
 	font-family: Consolas,monaco,monospace;
 	white-space: pre-wrap;
 	background: rgba(0, 0, 0, .03);
+}
+
+.text-right {
+	position: absolute;
+	width: max-content;
+	left: 0;
+	top: 0;
+	color: purple;
+	transform: translateX(9vh);
 }
