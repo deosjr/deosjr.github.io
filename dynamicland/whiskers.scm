@@ -35,9 +35,11 @@
   ; top-level is asserted/retracted with the page entering/leaving the scene
   ; nested Claims are treated as derived facts and need to be derived every fixpoint iteration
   (define (claim-pointer-at p point)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p pointer-at ,point)) #t)
     (hashtable-set! (datalog-idb (get-dl)) `(,p pointer-at ,point) #t)
     (Claim p 'pointer-at point))
   (define (claim-point-at p q)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p points-at ,q)) #t)
     (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
     (Claim p 'points-at q))
 
