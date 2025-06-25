@@ -54,11 +54,14 @@ main {
 }
 
 .table {
+	position: relative;
 	border: solid;
 	width: 60vw;
 	height: 20vh;
 	font-size: 1rem;
 	margin: auto;
+	pointer-events: none;
+	overflow: hidden;
 }
 
 .page {
@@ -110,11 +113,8 @@ nav a:hover {
 	background: rgba(0, 0, 0, .03);
 }
 
-.text-right {
+.text-projection {
 	position: absolute;
 	width: max-content;
-	left: 0;
-	top: 0;
 	color: purple;
-	transform: translateX(9vh);
 }

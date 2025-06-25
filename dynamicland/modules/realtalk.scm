@@ -141,13 +141,10 @@
 
 (define (add-page proc)
   (let* ((pid (dl-record! dl 'page ('code proc)))
-         (div (make-page-div pid))
-         (innerdiv (make-element "div")))
+         (div (make-page-div pid)))
     (set! *pages* (cons pid *pages*))
     (hashtable-set! *procs* pid proc)
     (hashtable-set! *divs* pid div)
-    (set-attribute! innerdiv "class" "content")
-    (append-child! div innerdiv)
     pid))
 
 (define (make-page-div id)
@@ -223,16 +220,21 @@
       (if (eq? key #\e) (update-page-rotation div pid rot))))))))
 
 ; make page div dimensions known in datalog
+; page dimensions are relative to the table they are on!
 (define (update-page-geometry pid div)
   (let* ((div (hashtable-ref *divs* pid #f))
          (div-rect (get-bounding-client-rect div))
+         (table (get-element-by-id "table"))
+         (table-rect (get-bounding-client-rect table))
          (divx (get-x div-rect))
          (divy (get-y div-rect))
+         (tablex (get-x table-rect))
+         (tabley (get-y table-rect))
          (div-width (get-width div-rect))
          (div-height (get-height div-rect)))
     (retract-page-geometry pid)
-    (dl-assert! dl pid '(page left) divx)
-    (dl-assert! dl pid '(page top) divy)
+    (dl-assert! dl pid '(page left) (- divx tablex))
+    (dl-assert! dl pid '(page top) (- divy tabley))
     (dl-assert! dl pid '(page width) div-width)
     (dl-assert! dl pid '(page height) div-height)))
 
@@ -294,7 +296,6 @@
     (set-style-left! pagediv left)
     (set-style-top! pagediv top)
     (set-style-transform! pagediv transform)
-    (set-inner-html! (query-selector pagediv ".content") "")
     (set-z-index! pagediv z)))
 
 ; When a page is in view, its code is executed. Then when all pages have ran, dl-fixpoint runs all consequences.
@@ -304,6 +305,7 @@
 ; then remove all derived facts and run fixpoint analysis again. This way we can encapsulate state in page code!
 ; NOTE: there are no derived facts!!! only followup claims/rules. we can query datalog to get all claims/rules asserted by a page as we run a closure over 'this' when creating rule lambda
 (define (recalculate-pages)
+  (set-inner-html! (get-element-by-id "table") "")
   (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
   ; todo: do we need to reset dl-idb ?
   ; currently rules execute each time a page is moved, which is not what I'd expect

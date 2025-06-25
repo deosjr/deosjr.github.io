@@ -103,17 +103,23 @@
     <div class=code>
 (define page4 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
-  (When ((points-at ,this ,?p))
+  (When ((points-at ,this ,?p)
+         ((page left) ,?p ,?x)
+         ((page top) ,?p ,?y)
+         ((page width) ,?p ,?w))
    do (let* ((dl (get-dl))
              (idx (datalog-idx-entity dl))
              (facts (hashtable-keys (hashtable-ref idx ?p #f)))
+             (table-div (get-element-by-id "table"))
              (text-div (make-element "div")))
-         (set-attribute! text-div "class" "text-right")
+         (set-attribute! text-div "class" "text-projection")
+         (set-style-left! text-div (format #f "~apx" (+ ?x ?w 10)))
+         (set-style-top! text-div (format #f "~apx" ?y))
          (for-each (lambda (fact)
            (let ((p (make-element "p")))
              (append-child! p (make-text-node (format #f "~a" fact)))
              (append-child! text-div p))) facts)
-         (append-child! (query-selector (get-page ?p) ".content") text-div))))))
+         (append-child! table-div text-div))))))
     </div>
     <p><a href="/dynamicland">Home</a></p>
     </main>
