@@ -96,7 +96,9 @@
          (for-each (lambda (fact)
            (let ((p (make-element "p")))
              (append-child! p (make-text-node (format #f "~a" fact)))
-             (append-child! text-div p))) facts)
+             (append-child! text-div p)))
+               ; 'code is used in fixpoint to not run conclusions of When's twice
+               (filter (lambda (f) (not (eqv? (cadr f) 'code))) facts))
          (append-child! table-div text-div))))))
 
 (define page1div (get-page page1))
