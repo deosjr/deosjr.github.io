@@ -143,7 +143,7 @@
     <div class=code>
 (dl_rule! (reachable ,?x ,?y) :- (edge ,?x ,?z) (reachable ,?z ,?y))
 
-(dl-assert-rule! dl (fresh-vars 2
+(dl-assert-rule! dl (fresh-vars 3
   (lambda (q x y)
     (conj (equalo q `(reachable ,?x ,?y))
           (dl-findo dl ((edge ,?x ,?z) (reachable ,?z ,?y))) )))))))))
