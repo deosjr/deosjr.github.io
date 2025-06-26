@@ -77,6 +77,7 @@
 ; NOTE that using css class this way goes against Dynamicland principles in the following ways:
 ; - the class::before style has to be defined up front
 ; - the class::before style can not be modified (unless the stylesheet itself is brought into scope)
+; Whiskers should probably be drawn like the text-projection is done below
 
 ; debug page: print known facts claimed by pointed-at page next to it
 (define page4 (add-page (make-page-code
