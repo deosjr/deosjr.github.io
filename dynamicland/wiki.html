@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="reflect.js"></script>
+    <script type="text/javascript" src="wiki.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  </head>
+  <body>
+    <main>
+    <p id="wasm-error" hidden="true">
+      A browser with Wasm GC and tail call support is required for
+      this demo.  We recommend using either Mozilla Firefox or Google
+      Chrome.
+    </p>
+    <h2>Wikipedia viewer</h2>
+    <p>Inspired by <a href="https://youtu.be/x8-7E0IT5K0?t=1062">this video</a>.</p>
+    <div id=pages class="pages"></div>
+    <p>
+      Topic: 
+      <input id="topic" value="tree"></input>
+    </p>
+    <p id=table class="table" style="height:80vh; width:80vh;"></p>
+    </main>
+  </body>
+</html>

@@ -14,7 +14,11 @@ variables: variables.scm
 	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
 	../../hoot/pre-inst-env guild compile-wasm -L modules -o variables.wasm variables.scm
 
-run: dynamicland datalog whiskers variables
+wiki: wiki.scm
+	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
+	../../hoot/pre-inst-env guild compile-wasm -L modules -o wiki.wasm wiki.scm
+
+run: dynamicland datalog whiskers variables wiki
 	../../hoot/pre-inst-env guile -c '((@ (hoot web-server) serve))'
 
 serve:
