@@ -14,10 +14,79 @@
       Chrome.
     </p>
     <h2>Variables and scope</h2>
-    <p>
-</p>
+    <p>So far we have only seen direct interaction of pages through the Claim/Wish/When model.
+       We wipe the datalog database frequently to get rid of old invalid assertions.
+       But what if we want pages to remember previous state?</p>
     <div id=pages class="pages"></div>
-    <p id=table class="table" style="height:80vh; width:80vh;"></p>
+    <p id=table class="table" style="height:60vh; width:60vh;"></p>
+    <p>Here we have two pages. Page #2 includes all of the logic we saw in <a href="/dynamicland/whiskers.html">whiskers</a>.
+       Page #1 showcases how to declare variables in the scope of a page.
+       It will cycle through four different colors, changing color whenever pointed at, but maintaining that color as long as the pointer still points at it.</p>
+    <div class=code>
+(define page1 (add-page (make-page-code
+  (define colors (list "green" "blue" "yellow" "red"))
+  (define index -1)
+  (define pointed-at #f)
+
+  (When ((points-at ,?p ,this)
+         (gives-color ,?p #t)) do
+    (if (not pointed-at)
+      (set! index (modulo (+ index 1) (length colors))))
+    (set! pointed-at #t)
+    (set-background! (get-page this) (list-ref colors index)))
+
+  (When ((not-points-at ,?p ,this)
+         (gives-color ,?p #t)) do
+    (if pointed-at (set! pointed-at #f))))))
+    </div>
+    <p>Before we can talk about variables we have to address one thing: negation.
+       Datalog does not deal with the concept of negation, by default, and we haven't added it in. 
+       This means that in order to detect whether a page is pointed or not, we need to explicitly declare both states.
+       Luckily we can amend the previous pointing-at logic minimally to reflect this:</p>
+    <div class=code>
+(define page2 (add-page (make-page-code
+  (Wish this 'has-whiskers #t)
+  (Claim this 'gives-colour #t)
+
+   ; [...] When ?p is pointing at ?point and ?q exists [...]
+   do (let ((px (car ?point))
+            (py (cdr ?point)))
+        (if (and (> px ?qx)
+                 (< px (+ ?qx ?qw))
+                 (> py ?qy)
+                 (< py (+ ?qy ?qh)))
+           (Claim ?p 'points-at ?q)
+           (Claim ?p 'not-points-at ?q)))) ; <-- new!
+    </div>
+    <p>We now have the fact 'p does not point at q' explicitly available in the db if it is the case.
+       Page #1 uses this to declare to When-statements: one for when it is pointed at and one for when it is not.
+       It declares three locally scoped variables to keep track of its internal state: colors, index and pointed-at.
+       Pointed-at is a boolean that is always updated to reflect whether page #1 is being pointed at.
+       It can be used to do edge detection: we can know whether we were pointed at the last time fixpoint analysis triggered!</p>
+
+    <p>Only when there is a change in being pointed at do we update the index into the list of colors we can set as background.
+       The reason this works is that the page's code is ran once when the page enters the table.
+       Any variable declared in this scope can be captured as a closure in a rule (the macro-expansion of When), which lets it live on.
+       Each time a rule triggers, these variables can be referenced.
+       This is a powerful way to set up dependencies between rules, but only within the scope of a single page.
+       Beyond that pages will have to use Claims in order to communicate state between each other.</p>
+    <p>But there is a subtle state-related problem we haven't mentioned yet.
+       If a page's code runs only once, the Claims that it makes are made once and should linger until the page leaves the table.
+       However, if a Claim is made as result of a When rule, that assertion should only be valid as long as the conditions are valid.
+       Instead of checking for this exhaustively we clear the database each iteration and derive these Claims again.
+       This means there should be a difference between top-level Claims and Claims nested in a When-clause.</p>
+    <p>At some point that should be handled in a macro.
+       For now, I add this bit of code to handle nested Claims (and deal with some remaining macro hygiene issues by side-stepping them):</p>
+    <div class=code>
+  (define (claim-point-at p q)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p points-at ,q)) #t)
+    (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
+    (Claim p 'points-at q))
+    </div>
+    <p>Here we make sure to add some facts to datalog-idb, the table of derived facts, whenever we make a derived Claim.
+       Each iteration of fixpoint analysis starts with cleaning up all derived facts, so these Claims get removed.
+       Problem solved!</p>
+    <p><a href="/dynamicland">Home</a></p>
     </main>
   </body>
 </html>
