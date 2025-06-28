@@ -19,12 +19,24 @@
        But what if we want pages to remember previous state?</p>
     <div id=pages class="pages"></div>
     <p id=table class="table" style="height:60vh; width:60vh;"></p>
-    <p>Here we have two pages. Page #2 includes all of the logic we saw in <a href="/dynamicland/whiskers.html">whiskers</a>.
-       Page #1 showcases how to declare variables in the scope of a page.
-       It will cycle through four different colors, changing color whenever pointed at, but maintaining that color as long as the pointer still points at it.</p>
+    <p>Here we have two pages plus a pointer page. Page #3 includes all of the logic we saw in <a href="/dynamicland/whiskers.html">whiskers</a>.
+       Page #1 and #2 showcase how to declare variables in the scope of a page.
+       Both will cycle through four different colors, changing color whenever pointed at.
+       The difference between the two is that page #2 maintains that color as long as the pointer still points at it.</p>
     <div class=code>
 (define page1 (add-page (make-page-code
-  (define colors (list "green" "blue" "yellow" "red"))
+  ; variables in page scope
+  (define colors (list "limegreen" "cornflowerblue" "yellow" "red"))
+  (define index -1)
+
+  (When ((points-at ,?p ,this)
+         (gives-color ,?p #t)) do
+    (set! index (modulo (+ index 1) (length colors)))
+    (set-background! (get-page this) (list-ref colors index))))))
+    </div>
+    <div class=code>
+(define page2 (add-page (make-page-code
+  (define colors (list "limegreen" "cornflowerblue" "yellow" "red"))
   (define index -1)
   (define pointed-at #f)
 
@@ -44,9 +56,9 @@
        This means that in order to detect whether a page is pointed or not, we need to explicitly declare both states.
        Luckily we can amend the previous pointing-at logic minimally to reflect this:</p>
     <div class=code>
-(define page2 (add-page (make-page-code
+(define page3 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
-  (Claim this 'gives-colour #t)
+  (Claim this 'gives-color #t)
 
    ; [...] When ?p is pointing at ?point and ?q exists [...]
    do (let ((px (car ?point))

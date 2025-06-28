@@ -8,7 +8,7 @@
 (define page1 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
   ; declare what happens when pointing at a page, ie maybe color it
-  (When ((points-at ,this ,?p)) do (set-background! (get-page ?p) "red"))
+  (When ((points-at ,this ,?p)) do (set-background! (get-page ?p) "limegreen"))
 )))
 
 (define page2 (add-page (make-page-code

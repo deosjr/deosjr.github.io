@@ -7,7 +7,18 @@
 
 (define page1 (add-page (make-page-code
   ; variables in page scope
-  (define colours (list "green" "blue" "yellow" "red"))
+  (define colours (list "limegreen" "cornflowerblue" "yellow" "red"))
+  (define index -1)
+
+  (When ((points-at ,?p ,this)
+         (gives-colour ,?p #t)) do
+    (set! index (modulo (+ index 1) (length colours)))
+    (set-background! (get-page this) (list-ref colours index)))
+)))
+
+(define page2 (add-page (make-page-code
+  ; variables in page scope
+  (define colours (list "limegreen" "cornflowerblue" "yellow" "red"))
   (define index -1)
   (define pointed-at #f)
 
@@ -30,7 +41,7 @@
 
 ; whiskers. see whiskers.scm
 ; extended to explicitly claim when _not_ pointing at a page
-(define page2 (add-page (make-page-code
+(define page3 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
   (Claim this 'gives-colour #t)
 
@@ -84,13 +95,17 @@
 (append-child! pages page1div)
 (define page2div (get-page page2))
 (append-child! pages page2div)
+(define page3div (get-page page3))
+(append-child! pages page3div)
 (define (add-text pagediv text)
   (let ((div (make-element "div")))
     (append-child! div (make-text-node text))
     (append-child! pagediv div)))
 (add-text page1div "#1")
 (add-text page2div "#2")
+(add-text page3div "#3")
 (set-style-left! page1div "30vw")
 (set-style-left! page2div "40vw")
+(set-style-left! page3div "50vw")
 
 (recalculate-pages)
