@@ -28,6 +28,9 @@
 (define-foreign array-ref
     "array" "ref"
     (ref null extern) i32 -> (ref null extern))
+(define-foreign console-log
+    "console" "log"
+    (ref string) -> none)
 
 (define (arr->list arr) 
   (let loop ((i 0) (len (array-length arr)) (acc '()))
@@ -57,8 +60,11 @@
            (w (get-width rect))
            (h (get-height rect))
            (tx (get-x table-rect))
-           (ty (get-y table-rect)))
-      (Claim a 'link-dimensions `(,(- x tx) ,(- y ty) ,w ,h))))
+           (ty (get-y table-rect))
+           (args `(,(- x tx) ,(- y ty) ,w ,h)))
+      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,a link-dimensions ,args)) #t)
+      (hashtable-set! (datalog-idb (get-dl)) `(,a link-dimensions ,args) #t)
+      (Claim a 'link-dimensions args)))
 
   (define (claim-wiki-text page x y w topic)
     (let ((args `(,x ,y ,w ,topic)))
@@ -98,8 +104,12 @@
          ((page width) ,?p ,?w))
    do (let ((topic (get-property ?link "innerHTML")))
         (set-background! ?link "hotpink")
-        ; crashes the page, similar to variables.scm bug...
-        ;(claim-wiki-text ?p ?x ?y ?w topic)))
+        ; expected: crashes the browser tab but only when rule triggers: infinite fixpoint loop
+        ;(claim-link-dimensions ?link)
+        ; unexpected: crashes the browser tab but only when page enters table, similar to variables.scm bug...
+        ;(claim-wiki-text ?p ?x ?y ?w topic)
+        ; this line works just fine
+        ;(console-log (format #f "~a ~a ~a ~a ~a" ?p ?x ?y ?w topic))
 ))
 )))
 

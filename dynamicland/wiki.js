@@ -90,6 +90,9 @@ window.addEventListener("load", async () => {
           length(arr) { return arr.length },
           ref(arr, i) { return arr[i] }
         },
+        console: {
+          log(str) { console.log(str); }
+        },
         event: {
           preventDefault(e) { e.preventDefault() },
           mouseX(e) { return e.clientX },
