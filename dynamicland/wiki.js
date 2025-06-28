@@ -81,8 +81,14 @@ window.addEventListener("load", async () => {
           getWidth(elem) { return elem.width },
           getHeight(elem) { return elem.height },
           getProperty(elem, key) { return elem[key]; },
+          setProperty(elem, key, value) { elem[key] = value; },
           focus(elem) { elem.focus(); },
-          querySelector(elem, string) { return elem.querySelector(string); }
+          querySelector(elem, string) { return elem.querySelector(string); },
+          querySelectorAll(elem, string) { return Array.from(elem.querySelectorAll(string)); }
+        },
+        array: {
+          length(arr) { return arr.length },
+          ref(arr, i) { return arr[i] }
         },
         event: {
           preventDefault(e) { e.preventDefault() },
