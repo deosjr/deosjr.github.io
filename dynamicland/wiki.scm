@@ -60,13 +60,24 @@
            (ty (get-y table-rect)))
       (Claim a 'link-dimensions `(,(- x tx) ,(- y ty) ,w ,h))))
 
+  (define (claim-wiki-text page x y w topic)
+    (let ((args `(,x ,y ,w ,topic)))
+      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,page wiki ,args)) #t)
+      (hashtable-set! (datalog-idb (get-dl)) `(,page wiki ,args) #t)
+      (Claim page 'wiki args)))
+
+  ; always true
   (When (((page left) ,this ,?x)
          ((page top) ,this ,?y)
-         ((page width) ,this ,?w)) do
+         ((page width) ,this ,?w))
+   do (let ((topic (get-property (get-element-by-id "topic") "value")))
+        (claim-wiki-text this ?x ?y ?w topic)))
+
+  (When ((wiki ,?p (,?x ,?y ,?w ,?topic))) do
     (let* ((text-div (make-element "div"))
            (table-div (get-element-by-id "table"))
            (p (make-element "p"))
-           (url (string-append urlpref (get-property (get-element-by-id "topic") "value")))
+           (url (string-append urlpref ?topic))
            ; by experimentation: this is the first paragraph when returned by wiki REST API
            (dom (query-selector (parse-dom (wiki-html url)) "style ~ p:not([class])" ))
            (html (if (external-null? dom) "" (get-property dom "innerHTML"))))
@@ -81,8 +92,15 @@
           (claim-link-dimensions link))
           (arr->list (query-selector-all text-div "a"))))))
 
-  (When ((points-at ,?p ,?link)) do
-    (set-background! ?link "hotpink"))
+  (When ((points-at ,?p ,?link)
+         ((page left) ,?p ,?x)
+         ((page top) ,?p ,?y)
+         ((page width) ,?p ,?w))
+   do (let ((topic (get-property ?link "innerHTML")))
+        (set-background! ?link "hotpink")
+        ; crashes the page, similar to variables.scm bug...
+        ;(claim-wiki-text ?p ?x ?y ?w topic)))
+))
 )))
 
 ; whiskers. see whiskers.scm
