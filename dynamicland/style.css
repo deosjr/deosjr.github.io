@@ -117,3 +117,7 @@ nav a:hover {
 	position: absolute;
 	color: purple;
 }
+
+.text-projection a {
+	text-wrap-mode: nowrap;
+}

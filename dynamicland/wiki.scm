@@ -51,7 +51,6 @@
 (define page1 (add-page (make-page-code
   (define urlpref "https://en.wikipedia.org/api/rest_v1/page/html/" )
 
-  ; known bug: links that break at end of line, make bounding box two lines!
   (define (claim-link-dimensions a)
     (let* ((rect (get-bounding-client-rect a))
            (table-rect (get-bounding-client-rect (get-element-by-id "table")))
