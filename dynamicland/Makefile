@@ -18,6 +18,10 @@ wiki: wiki.scm
 	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
 	../../hoot/pre-inst-env guild compile-wasm -L modules -o wiki.wasm wiki.scm
 
+blue: blue-prince/blue.scm
+	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
+	../../hoot/pre-inst-env guild compile-wasm -L modules -o blue-prince/blue.wasm blue-prince/blue.scm
+
 run: dynamicland datalog whiskers variables wiki
 	../../hoot/pre-inst-env guile -c '((@ (hoot web-server) serve))'
 

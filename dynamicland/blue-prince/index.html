@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="../reflect.js"></script>
+    <script type="text/javascript" src="blue-prince/blue.js"></script>
+    <link rel="stylesheet" href="../style.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  </head>
+  <body>
+    <main>
+    <p id="wasm-error" hidden="true">
+      A browser with Wasm GC and tail call support is required for
+      this demo.  We recommend using either Mozilla Firefox or Google
+      Chrome.
+    </p>
+    <h2>Blue Prince: Mora-Jai puzzles</h2>
+    <p>Warning: spoilers for the game <a href="https://www.blueprincegame.com/">Blue Prince</a>. Scroll past the table if you want to know more.</p>
+    <div id=pages class="pages"></div>
+    <p id=table class="table" style="height:60vh; width:60vh;"></p>
+    <p>Note: squares are touched by using the whisker. Each fixpoint iteration (ie when a page moves) this is checked again.
+       Moving unrelated pages can lead to multiple triggers!</p>
+    <p>Note: checking the win condition is currently slightly broken, lagging one iteration behind!</p>
+    <p>In the game, Mora-Jai puzzle boxes are a recurring puzzle whose ruleset is a puzzle in itself.
+       The goal of a puzzle is to make certain colors appear at the corners: most often four of the same color.
+       The Orinda Aries puzzle is found behind the first door of the Inner Sanctum and requires four black squares at the corners to be solved.
+       Pressing a square can make the squares change position or color, depending on the color of the square pressed and its position.</p>
+    <p>The pages green, yellow and black each describe different behaviours of colored squares.
+       Those squares will only function when their page is active on the table.
+       As an example, here is the code for the black page:</p>
+    <div class=code>
+  (define (rotate page y x1 x2 x3)
+    (wish-update page 1 y x3)
+    (wish-update page 2 y x1)
+    (wish-update page 3 y x2))
+
+  (define (wish-update page x y color)
+    (let ((args `(,x ,y ,color)))
+      (Wish page 'updates args)))
+
+  ; we could duplicate Whens with hardcoded y instead of using cond
+  (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
+                              (,?b1 ,?b2 ,?b3)
+                              (,?c1 ,?c2 ,?c3)))
+         (points-at ,?page ,?button)
+         (button ,?button (,?p ,?x ,?y black)))
+   do (cond
+        [(= ?y 1) (rotate ?p ?y ?a1 ?a2 ?a3)]
+        [(= ?y 2) (rotate ?p ?y ?b1 ?b2 ?b3)]
+        [(= ?y 3) (rotate ?p ?y ?c1 ?c2 ?c3)]))
+    </div>
+    <p>WIP: discussion on DRY principles and puzzle page declaration, where and how to keep state, swapping out pages to redeclare square color behaviour, resetting the puzzle by swapping page in/out of the table.</p>
+    </main>
+  </body>
+</html>

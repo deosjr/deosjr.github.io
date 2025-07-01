@@ -80,6 +80,8 @@
 ; Whiskers should probably be drawn like the text-projection is done below
 
 ; debug page: print known facts claimed by pointed-at page next to it
+; todo: if fixpoint ends with a claim, that claim might not be represented
+; because printing text will have happened before it?
 (define page4 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
   (When ((points-at ,this ,?p)

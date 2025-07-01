@@ -76,6 +76,13 @@
        Pointed-at is a boolean that is always updated to reflect whether page #1 is being pointed at.
        It can be used to do edge detection: we can know whether we were pointed at the last time fixpoint analysis triggered!</p>
 
+    <p>Note that there is a big difference between the two When-statements of page #2.
+       The first When will fire for each page that is pointing at it, and the first execution will update the color index because it checks and updates the variable pointed-at.
+       This makes the rule function as if it said 'when <i>any</i> page points at this, do the following (but only once)'.
+       In the same way the second When will fire for each page that is <i>not</i> pointing at it.
+       Intuitively we would like to read this as 'when no page is pointing at this' but that is not what it does.
+       If multiple pages are pointing, one can point at page #2 while the other doesn't, and the rule will still trigger.</p>
+
     <p>Only when there is a change in being pointed at do we update the index into the list of colors we can set as background.
        The reason this works is that the page's code is ran once when the page enters the table.
        Any variable declared in this scope can be captured as a closure in a rule (the macro-expansion of When), which lets it live on.

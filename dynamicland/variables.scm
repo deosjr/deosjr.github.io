@@ -36,6 +36,7 @@
     (if pointed-at (set! pointed-at #f))
     ; bug: without this noop line, the whole thing crashes?!?!?
     ; smth smth compiler reordering and sequencing barriers ???
+    ; its not actually noop, display does print to console using reflect.js but not for #t or #f
     (display pointed-at))
 )))
 
