@@ -1,7 +1,7 @@
 window.addEventListener("load", async () => {
   try {
     await Scheme.load_main("blue.wasm", {
-      reflect_wasm_dir: ".",
+      reflect_wasm_dir: "../.",
       user_imports: {
         document: {
           body() { return document.body; },
