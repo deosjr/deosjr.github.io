@@ -50,6 +50,7 @@
 
 ; first sanctum puzzle
 (define page1 (add-page (make-page-code
+  (define solved #f)
   (define solution 'black)
   (define init '((green black  green)
                  (black black  black)
@@ -82,18 +83,56 @@
     (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
     (Claim this 'mora-jai-state state)))
 
+  (define (claim-final-state)
+    ; todo: not pretty, but works
+    (let ((state `(
+      ( ,(hashtable-ref state (cons 1 1) #f) ,(hashtable-ref state (cons 2 1) #f) ,(hashtable-ref state (cons 3 1) #f) )
+      ( ,(hashtable-ref state (cons 1 2) #f) ,(hashtable-ref state (cons 2 2) #f) ,(hashtable-ref state (cons 3 2) #f) )
+      ( ,(hashtable-ref state (cons 1 3) #f) ,(hashtable-ref state (cons 2 3) #f) ,(hashtable-ref state (cons 3 3) #f) )
+    )))
+    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-final-state ,state)) #t)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-final-state ,state) #t)
+    (Claim this 'mora-jai-final-state state)))
+
   ; i.e. forever, but conditional claims since our state will change
   (When ((mora-jai ,this ,?sol)) do
     (claim-state))
+
+  (define (wish-update-draw x y c)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,(cons x y) updates ,c)) #t)
+    (Wish (cons x y) 'updates c))
 
   ; using init as state and set! to update the list blows everything up
   ; so we rely on an internal hashmap for color state
   ; note: the entire state has already been claimed at start of fixpoint
   ; perhaps we can set the color style of that button in this iteration? -> see engine page
-  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
-   do (hashtable-set! state (cons ?x ?y) ?color)
-      ; this line needed to not make things blow up?!?
-      (console-log (format #f "update ~a,~a to ~a" ?x ?y ?color)))
+  (When ((wishes ,?p (,this updates ((,?x1 ,?y1 ,?c1) (,?x2 ,?y2 ,?c2)))))
+   do (hashtable-set! state (cons ?x1 ?y1) ?c1)
+      (wish-update-draw ?x1 ?y1 ?c1)
+      (hashtable-set! state (cons ?x2 ?y2) ?c2)
+      (wish-update-draw ?x2 ?y2 ?c2)
+      (claim-final-state))
+  (When ((wishes ,?p (,this updates ((,?x1 ,?y1 ,?c1) (,?x2 ,?y2 ,?c2) (,?x3 ,?y3 ,?c3)))))
+   do (hashtable-set! state (cons ?x1 ?y1) ?c1)
+      (wish-update-draw ?x1 ?y1 ?c1)
+      (hashtable-set! state (cons ?x2 ?y2) ?c2)
+      (wish-update-draw ?x2 ?y2 ?c2)
+      (hashtable-set! state (cons ?x3 ?y3) ?c3)
+      (wish-update-draw ?x3 ?y3 ?c3)
+      (claim-final-state))
+#|
+  ; todo: this is slow because ?updates matches many times if not unpacked
+  (When ((wishes ,?p (,this updates ,?updates))) 
+   do (for-each (lambda (update)
+        (let ((x (car update))
+              (y (cadr update))
+              (c (caddr update)))
+          (hashtable-set! state (cons x y) c)   
+          (console-log (format #f "update: ~a,~a -> ~a" x y c))
+          (wish-update-draw x y c)
+        )) ?updates)
+      (claim-final-state))
+|#
 )))
 
 ; engine (offload as much logic as possible from a page without keeping its state)
@@ -174,21 +213,25 @@
          (button-div ,?div (,?mx . ,?my))) do
     (if (< (euclidian ?px ?py ?mx ?my) select-radius) (claim-point-at ?p ?div)))
 
-  (When ((points-at ,?p ,?button)
-         (button ,?button (,?page ,?x ,?y ,?color)))
-   do (console-log (format #f "~a ~a ~a" ?x ?y ?color)))
-
   ; update the button color immediately
   ; note that get-property is defined to return an external ref to make this work
-  (When ((wishes ,?wisher (,?p updates (,?x ,?y ,?color)))
+  (When ((wishes ,?wisher ((,?x . ,?y) updates ,?color))
          (button ,?button (,?p ,?x ,?y ,?old)))
    do (set-property! (get-property ?button "style") "background" (symbol->string ?color)))
 
-  ; todo: solution is only found next iteration
+  ; todo: wish for p to be solved, and let p update its status + assert it each cycle?
+  (define (claim-solved p)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p is-solved #t)) #t)
+    (hashtable-set! (datalog-idb (get-dl)) `(,p is-solved #t) #t)
+    (Claim p 'is-solved #t))
+
   (When ((mora-jai ,?p ,?sn)
-         (mora-jai-state ,?p ((,?sn ,?a2 ,?sn)
-                              (,?b1 ,?b2 ,?b3)
-                              (,?sn ,?c2 ,?sn))))
+         (mora-jai-final-state ,?p ((,?sn ,?a2 ,?sn)
+                                    (,?b1 ,?b2 ,?b3)
+                                    (,?sn ,?c2 ,?sn))))
+   do (claim-solved ?p))
+
+  (When ((is-solved ,?p #t))
    do (set-background! (get-page this) "gold"))
 )))
 
@@ -238,31 +281,12 @@
 )))
 
 (define page4 (add-page (make-page-code
-  (define (rotate page y x1 x2 x3)
-    (wish-update page 1 y x3)
-    (wish-update page 2 y x1)
-    (wish-update page 3 y x2))
+  (define (wish-updates page updates)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,updates)) #t)
+    (Wish page 'updates updates))
 
-  (define (wish-update page x y color)
-    (let ((args `(,x ,y ,color)))
-      ; runs infinite fixpoint???
-      ;(hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,args)) #t)
-      ;(hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page foobar ,args)) #t)
-      ;(hashtable-set! (datalog-idb (get-dl)) `(1 wishes ,args) #t)
-      ;(hashtable-set! (datalog-idb (get-dl)) `(,this wishes 2) #t)
-      ; works:
-      ;(hashtable-set! (datalog-idb (get-dl)) `(5 wishes 2) #t)
-      ; but adding this line breaks things!?! but individually this line is also just fine??!?
-      ;(console-log (format #f "~a" this))
-      ; manually expanding Wish macro does not do anything either
-      ; Claim has the same issue
-      ;(dl-assert! (get-dl) this 'wishes `(,page updates ,args))
-      (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,args)) #t)
-      (Wish page 'updates args)
-      )
-    ; turns out this line breaks everything!!
-    ;(console-log (format #f "wish ~a,~a is ~a" x y color))
-  )
+  (define (rotate page y x1 x2 x3)
+    (wish-updates page `((1 ,y ,x3) (2 ,y ,x1) (3 ,y ,x2))))
 
   ; todo: using ,?y instead of 1/2/3 again gives random amount of executions here when using ?color instead of black
   ; we could duplicate Whens with hardcoded y instead of using cond
@@ -278,10 +302,9 @@
 )))
 
 (define page5 (add-page (make-page-code
-  (define (wish-update page x y color)
-    (let ((args `(,x ,y ,color)))
-      (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,args)) #t)
-      (Wish page 'updates args)))
+  (define (wish-updates page updates)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,updates)) #t)
+    (Wish page 'updates updates))
 
   (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
                               (,?b1 ,?b2 ,?b3)
@@ -289,29 +312,28 @@
          (points-at ,?page ,?button)
          (button ,?button (,?p ,?x ,?y green)))
    do (cond
-        [(and (= ?x 1) (= ?y 1)) (wish-update ?p 3 3 'green)
-                                 (wish-update ?p 1 1 ?c3)]
-        [(and (= ?x 2) (= ?y 1)) (wish-update ?p 2 3 'green)
-                                 (wish-update ?p 2 1 ?c2)]
-        [(and (= ?x 3) (= ?y 1)) (wish-update ?p 1 3 'green)
-                                 (wish-update ?p 3 1 ?c1)]
-        [(and (= ?x 1) (= ?y 2)) (wish-update ?p 3 2 'green)
-                                 (wish-update ?p 1 2 ?b3)]
-        [(and (= ?x 3) (= ?y 2)) (wish-update ?p 1 2 'green)
-                                 (wish-update ?p 3 2 ?b1)]
-        [(and (= ?x 1) (= ?y 3)) (wish-update ?p 3 1 'green)
-                                 (wish-update ?p 1 3 ?a3)]
-        [(and (= ?x 2) (= ?y 3)) (wish-update ?p 2 1 'green)
-                                 (wish-update ?p 2 3 ?a2)]
-        [(and (= ?x 3) (= ?y 3)) (wish-update ?p 1 1 'green)
-                                 (wish-update ?p 3 3 ?a1)]))
+        [(and (= ?x 1) (= ?y 1))
+           (wish-updates ?p `((3 3 green) (1 1 ,?c3)))]
+        [(and (= ?x 2) (= ?y 1))
+           (wish-updates ?p `((2 3 green) (2 1 ,?c2)))]
+        [(and (= ?x 3) (= ?y 1))
+           (wish-updates ?p `((1 3 green) (3 1 ,?c1)))]
+        [(and (= ?x 1) (= ?y 2))
+           (wish-updates ?p `((3 2 green) (1 2 ,?b3)))]
+        [(and (= ?x 3) (= ?y 2))
+           (wish-updates ?p `((1 2 green) (3 2 ,?b1)))]
+        [(and (= ?x 1) (= ?y 3))
+           (wish-updates ?p `((3 1 green) (1 3 ,?a3)))]
+        [(and (= ?x 2) (= ?y 3))
+           (wish-updates ?p `((2 1 green) (2 3 ,?a2)))]
+        [(and (= ?x 3) (= ?y 3))
+           (wish-updates ?p `((1 1 green) (3 3 ,?a1)))]))
 )))
 
 (define page6 (add-page (make-page-code
-  (define (wish-update page x y color)
-    (let ((args `(,x ,y ,color)))
-      (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,args)) #t)
-      (Wish page 'updates args)))
+  (define (wish-updates page updates)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,updates)) #t)
+    (Wish page 'updates updates))
 
   (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
                               (,?b1 ,?b2 ,?b3)
@@ -319,18 +341,18 @@
          (points-at ,?page ,?button)
          (button ,?button (,?p ,?x ,?y yellow)))
    do (cond
-        [(and (= ?x 1) (= ?y 2)) (wish-update ?p 1 1 'yellow)
-                                 (wish-update ?p 1 2 ?a1)]
-        [(and (= ?x 2) (= ?y 2)) (wish-update ?p 2 1 'yellow)
-                                 (wish-update ?p 2 2 ?a2)]
-        [(and (= ?x 3) (= ?y 2)) (wish-update ?p 3 1 'yellow)
-                                 (wish-update ?p 3 2 ?a3)]
-        [(and (= ?x 1) (= ?y 3)) (wish-update ?p 1 2 'yellow)
-                                 (wish-update ?p 1 3 ?b1)]
-        [(and (= ?x 2) (= ?y 3)) (wish-update ?p 2 2 'yellow)
-                                 (wish-update ?p 2 3 ?b2)]
-        [(and (= ?x 3) (= ?y 3)) (wish-update ?p 3 2 'yellow)
-                                 (wish-update ?p 3 3 ?b3)]))
+        [(and (= ?x 1) (= ?y 2))
+           (wish-updates ?p `((1 1 yellow) (1 2 ,?a1)))]
+        [(and (= ?x 2) (= ?y 2))
+           (wish-updates ?p `((2 1 yellow) (2 2 ,?a2)))]
+        [(and (= ?x 3) (= ?y 2))
+           (wish-updates ?p `((3 1 yellow) (3 2 ,?a3)))]
+        [(and (= ?x 1) (= ?y 3))
+           (wish-updates ?p `((1 2 yellow) (1 3 ,?b1)))]
+        [(and (= ?x 2) (= ?y 3))
+           (wish-updates ?p `((2 2 yellow) (2 3 ,?b2)))]
+        [(and (= ?x 3) (= ?y 3))
+           (wish-updates ?p `((3 2 yellow) (3 3 ,?b3)))]))
 )))
 
 (define page1div (get-page page1))
