@@ -10,9 +10,6 @@
 (define-foreign window
     "window" "window"
     -> (ref null extern))
-(define-foreign console-log
-    "console" "log"
-    (ref string) -> none)
 
 (add-event-listener! (window) "update-realtalk" (procedure->external (lambda (e)
   (recalculate-pages))))
@@ -43,26 +40,10 @@
       (set! index (modulo (+ index 1) (length colours))))
     (set! pointed-at #t)
     (set-background! (get-page this) (list-ref colours index)))
-#|
+
   (When ((not-points-at ,?p ,this)
          (gives-colour ,?p #t)) do
-    (if pointed-at (set! pointed-at #f))
-    ; bug: without this noop line, the whole thing crashes?!?!?
-    ; smth smth compiler reordering and sequencing barriers ???
-    ; its not actually noop, display does print to console using reflect.js but not for #t or #f
-    ; in this case, displaying a hardcoded string also makes things work, but doesn't print in console...
-    (display pointed-at))
-    ; adding an actual noop (ie the identity function) breaks
-    ;(noop pointed-at))
-|#
-  ; same behaviour can be reproduced in the macro-expanded version!
-  ;(let* ((code (lambda (this ?p) (begin (if pointed-at (set! pointed-at #f)))))
-  (let* ((code (lambda (this ?p) (begin (if pointed-at (set! pointed-at #f)) (display pointed-at) )))
-         (rule (fresh-vars 2 (lambda (q ?p)
-           (conj (equalo q (list this 'code (cons code (list ?p))))
-                 (dl-findo (get-dl) ((,?p not-points-at ,this) (,?p gives-colour #t))))))))
-    (dl-assert! (get-dl) this 'rules rule)
-    (dl-assert-rule! (get-dl) rule))
+    (if pointed-at (set! pointed-at #f)))
   
 )))
 

@@ -5,6 +5,7 @@
   #:use-module (datalog)
   #:use-module (hoot ffi)
   #:use-module (hoot hashtables)
+  #:use-module (hoot gensym)
   #:export (Claim Wish When
             make-page-code
             add-page
@@ -18,12 +19,12 @@
 ; code to be executed is compiled in 'when' so we inject it there using (lambda (page) f ...)
 
 ; known bugs:
-; - crash when a rule fires, sometimes fixed when adding a statement such as display or console-log?
-; --> try to gensym the code lambda and look up implementation in a weak-hashtable by gensym key?
 ; - derived Claim/Wish is not supported in When macro, 'this' keyword not available
 ; --> see below, inject 'this' explicitly in embedded Claim/Wish. Disallow nested When rules
 ; - derived Claim/Wish is not supported in When macro, behaviour should be different
 ; --> When macro replaces Claim/Wish with DerivedClaim/DerivedWish?
+
+(define *rule-procs* (make-hashtable))
 
 (define-syntax Claim
   (lambda (stx)
@@ -101,9 +102,11 @@
             (replaced-statements (replace-symbols st-datums sym->gen))
             (replaced-conditions (replace-symbols datums sym->gen)))
        #`(let* ((code `,(lambda (this #,@gens) (begin #,@replaced-statements)))
+                (code-name (gensym))
                 (rule (fresh-vars #,numvars (lambda (q #,@gens)
-                          (conj (equalo q (list this 'code (cons code (list #,@gens))))
+                          (conj (equalo q (list this 'code (cons code-name (list #,@gens))))
                                 (dl-findo (get-dl) #,replaced-conditions))))))
+             (hashtable-set! *rule-procs* code-name code)
              (dl-assert! (get-dl) this 'rules rule)
              (dl-assert-rule! (get-dl) rule))))))))
 
@@ -136,7 +139,7 @@
       (let ((this (car c))
             (proc (caaddr c))
             (args (cdaddr c)))
-         (apply proc this args))) new)
+         (apply (hashtable-ref *rule-procs* proc #f) this args))) new)
     (if (not (null? new)) (dl-fixpoint-iterate dl))))
 
 (define *pages* '())

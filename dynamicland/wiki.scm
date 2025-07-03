@@ -101,24 +101,13 @@
           (claim-link-dimensions link))
           (arr->list (query-selector-all text-div "a"))))))
 
-#|
   (When ((points-at ,?p ,?link)
          ((page left) ,?p ,?x)
          ((page top) ,?p ,?y)
          ((page width) ,?p ,?w))
    do (let ((topic (get-property ?link "innerHTML")))
         (set-background! ?link "hotpink")
-
-        ; expected: crashes the browser tab but only when rule triggers: infinite fixpoint loop
-        ;(claim-link-dimensions ?link)
-        ; unexpected: crashes the browser tab but only when page enters table, similar to variables.scm bug...
-        ; _does work_ when this When rule is separated into a different page
-        ; _does work_ when statements from (When (wiki ...)) are added here
-        ;(claim-wiki-text ?p ?x ?y ?w topic)
-        ; this line works just fine
-        ;(console-log (format #f "~a ~a ~a ~a ~a" ?p ?x ?y ?w topic))
-))
-|#
+        (claim-wiki-text ?p ?x ?y ?w topic)))
 )))
 
 ; whiskers. see whiskers.scm
@@ -163,22 +152,9 @@
            (claim-point-at ?p ?q))))
 )))
 
+; extra pointer page
 (define page3 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
-
-  (define (claim-wiki-text page x y w topic)
-    (let ((args `(,x ,y ,w ,topic)))
-      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,page wiki ,args)) #t)
-      (hashtable-set! (datalog-idb (get-dl)) `(,page wiki ,args) #t)
-      (Claim page 'wiki args)))
-
-  (When ((points-at ,?p ,?link)
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?w))
-   do (let ((topic (get-property ?link "innerHTML")))
-        (set-background! ?link "hotpink")
-        (claim-wiki-text ?p ?x ?y ?w topic)))
 )))
 
 (define page1div (get-page page1))
@@ -191,9 +167,9 @@
   (let ((div (make-element "div")))
     (append-child! div (make-text-node text))
     (append-child! pagediv div)))
-(add-text page1div "#1")
-(add-text page2div "#2")
-(add-text page3div "#3")
+(add-text page1div "source")
+(add-text page2div "whiskers")
+(add-text page3div "extra pointer")
 (set-style-left! page1div "30vw")
 (set-style-left! page2div "40vw")
 (set-style-left! page3div "50vw")

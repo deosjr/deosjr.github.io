@@ -118,16 +118,10 @@
 
   (When ((points-at ,?p ,?button)
          (button ,?button (,this ,?x ,?y ,?color)))
-   do 
-      ; this line needed to not make things blow up?!?
-      (console-log (format #f "pointing at ~a,~a: ~a" ?x ?y ?color))
-      (set! pointed-at #t))
+   do (set! pointed-at #t))
 
   (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
-   do 
-      ; this line needed to not make things blow up?!?
-      (console-log (format #f "update ~a,~a to ~a" ?x ?y ?color))
-      (hashtable-set! state (cons ?x ?y) ?color))
+   do (hashtable-set! state (cons ?x ?y) ?color))
 
   (When ((is-solved ,this #t))
    do (set! solved #t))
@@ -415,16 +409,10 @@
 
   (When ((points-at ,?p ,?button)
          (button ,?button (,this ,?x ,?y ,?color)))
-   do 
-      ; this line needed to not make things blow up?!?
-      (console-log (format #f "pointing at ~a,~a: ~a" ?x ?y ?color))
-      (set! pointed-at #t))
+   do (set! pointed-at #t))
 
   (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
-   do 
-      ; this line needed to not make things blow up?!?
-      (console-log (format #f "update ~a,~a to ~a" ?x ?y ?color))
-      (hashtable-set! state (cons ?x ?y) ?color))
+   do (hashtable-set! state (cons ?x ?y) ?color))
 
   (When ((is-solved ,this #t))
    do (set! solved #t))
