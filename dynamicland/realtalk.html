@@ -83,6 +83,8 @@
     This should somehow trigger Datalog's fixpoint analysis, which in our case runs a naive algorithm attempting to find new facts until it finds nothing new.</p>
     <p>To implement RealTalk we are going to hack into the internals of our Datalog and make one crucial change: whenever a new fact is found, we will assume it is a piece of code that we can execute!
     <div class=code>
+(define *rule-procs* (make-hashtable))
+
 (define (dl-fixpoint! dl)
   (set-datalog-idb! dl (make-hashtable))
   (dl-fixpoint-iterate dl))
@@ -101,7 +103,7 @@
       (let ((this (car c))
             (proc (caaddr c))
             (args (cdaddr c)))
-         (apply proc this args))) new)
+         (apply (hashtable-ref *rule-procs* proc #f) this args))) new)
     (if (not (null? new)) (dl-fixpoint-iterate dl))))
     </div>
     <p>We will base our implementation of When on the Datalog macro dl-rule! that we built before.
@@ -116,14 +118,18 @@
 
 ; modules/realtalk:When
 #`(let* ((code `,(lambda (this #,@gens) (begin #,@replaced-statements)))
+         (code-name (gensym))
          (rule (fresh-vars #,numvars (lambda (q #,@gens)
                    ; construct expected tuple output
-                   (conj (equalo q (list this 'code (cons code (list #,@gens))))
+                   (conj (equalo q (list this 'code (cons code-name (list #,@gens))))
                          (dl-findo (get-dl) #,replaced-conditions))))))
+      (hashtable-set! *rule-procs* code-name code)
       (dl-assert! (get-dl) this 'rules rule)
       (dl-assert-rule! (get-dl) rule))))))))
     </div>
-    <p>There are still things to solve here, but this version can already do some powerful things.
+    <p>We store the actual procedure in a global table and look it up by a freshly gensymmed symbol.
+       This way we can get a stable hash for the whole thing, and fixpoint will find it as a new fact once.
+       There are still things to solve here, but this version can already do some powerful things.
        For example, we can now write the following to define a page:</p>
     <div class=code>
 (define page3 (add-page (make-page-code
