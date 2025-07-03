@@ -11,6 +11,9 @@ window.addEventListener("load", async () => {
         window: {
           window() { return window; }
         },
+        console: {
+          log(str) { console.log(str); }
+        },
         document: {
           body() { return document.body; },
           getElementById: Document.prototype.getElementById.bind(document),

@@ -54,6 +54,9 @@
 ; Basically writing code that understands a lot of the internal operating mechanism instead of just declaring facts
 ; Solution: simplify by depending on recalculate-pages running often and automatically?
 
+; more notes: input can be handled like the folk computer 'button' origami
+; box can be a generic page with its init state 'set' by another pointing at it?
+
 ; puzzle state: ( ( a1 a2 a3 )
 ;                 ( b1 b2 b3 )
 ;                 ( c1 c2 c3 ) )
@@ -74,51 +77,60 @@
   ; state is stored as hashtable and asserted as a list
   ; this lets us pattern match but also update by coordinate
   ; and decouples page state from claimed state
+  ; TIL: named let
   (define state (make-hashtable))
-  (hashtable-set! state (cons 1 1) (car (car init)))
-  (hashtable-set! state (cons 2 1) (cadr (car init)))
-  (hashtable-set! state (cons 3 1) (caddr (car init)))
-  (hashtable-set! state (cons 1 2) (car (cadr init)))
-  (hashtable-set! state (cons 2 2) (cadr (cadr init)))
-  (hashtable-set! state (cons 3 2) (caddr (cadr init)))
-  (hashtable-set! state (cons 1 3) (car (caddr init)))
-  (hashtable-set! state (cons 2 3) (cadr (caddr init)))
-  (hashtable-set! state (cons 3 3) (caddr (caddr init)))
+
+  (let loop-rows ((row init) (y 1))
+    (when (pair? row)
+      (let loop-cols ((col (car row)) (x 1))
+        (when (pair? col)
+          (hashtable-set! state (cons x y) (car col))
+          (loop-cols (cdr col) (+ x 1))))
+      (loop-rows (cdr row) (+ y 1)))) 
+
+  (define (state-list)
+    (let row-loop ((y 1) (rows '()))
+      (if (> y 3)
+          (reverse rows)
+          (let col-loop ((x 1) (cols '()))
+            (if (> x 3)
+                (row-loop (+ y 1) (cons (reverse cols) rows))
+                (col-loop (+ x 1) (cons (hashtable-ref state (cons x y) #f) cols)))))))
 
   (Claim this 'mora-jai solution)
 
+  ; claim solved state?
   (define (claim-state)
     ; we know this runs each iteration at the start
     (set! pointed-at-prev pointed-at)
     (set! pointed-at #f)
-    ; todo: not pretty, but works
-    (let ((state `(
-      ( ,(hashtable-ref state (cons 1 1) #f) ,(hashtable-ref state (cons 2 1) #f) ,(hashtable-ref state (cons 3 1) #f) )
-      ( ,(hashtable-ref state (cons 1 2) #f) ,(hashtable-ref state (cons 2 2) #f) ,(hashtable-ref state (cons 3 2) #f) )
-      ( ,(hashtable-ref state (cons 1 3) #f) ,(hashtable-ref state (cons 2 3) #f) ,(hashtable-ref state (cons 3 3) #f) )
-    )))
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-state ,state)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
-    (Claim this 'mora-jai-state state)))
+    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this was-pointed-at ,pointed-at-prev)) #t)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this was-pointed-at ,pointed-at-prev) #t)
+    (Claim this 'was-pointed-at pointed-at-prev)
+    (let ((state (state-list)))
+      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-state ,state)) #t)
+      (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
+      (Claim this 'mora-jai-state state)))
 
   ; i.e. forever, but conditional claims since our state will change
   (When ((mora-jai ,this ,?sol)) do
     (claim-state))
 
-  (define (claim-newly-pointed-at)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this newly-pointed-at #t)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this newly-pointed-at #t) #t)
-    (Claim this 'newly-pointed-at #t))
-
   (When ((points-at ,?p ,?button)
          (button ,?button (,this ,?x ,?y ,?color)))
-   do (set! pointed-at #t)
-      (if (not pointed-at-prev) (claim-newly-pointed-at)))
+   do 
+      ; this line needed to not make things blow up?!?
+      (console-log (format #f "pointing at ~a,~a: ~a" ?x ?y ?color))
+      (set! pointed-at #t))
 
   (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
-   do (hashtable-set! state (cons ?x ?y) ?color)
+   do 
       ; this line needed to not make things blow up?!?
-      (console-log (format #f "update ~a,~a to ~a" ?x ?y ?color)))
+      (console-log (format #f "update ~a,~a to ~a" ?x ?y ?color))
+      (hashtable-set! state (cons ?x ?y) ?color))
+
+  (When ((is-solved ,this #t))
+   do (set! solved #t))
 )))
 
 ; engine (offload as much logic as possible from a page without keeping its state)
@@ -285,7 +297,7 @@
                               (,?b1 ,?b2 ,?b3)
                               (,?c1 ,?c2 ,?c3)))
          (points-at ,?page ,?button)
-         (newly-pointed-at ,?p #t)
+         (was-pointed-at ,?p #f)
          (button ,?button (,?p ,?x ,?y black)))
    do (cond
         [(= ?y 1) (rotate ?p ?y ?a1 ?a2 ?a3)]
@@ -304,7 +316,7 @@
                               (,?b1 ,?b2 ,?b3)
                               (,?c1 ,?c2 ,?c3)))
          (points-at ,?page ,?button)
-         (newly-pointed-at ,?p #t)
+         (was-pointed-at ,?p #f)
          (button ,?button (,?p ,?x ,?y green)))
    do (cond
         [(and (= ?x 1) (= ?y 1))
@@ -336,7 +348,7 @@
                               (,?b1 ,?b2 ,?b3)
                               (,?c1 ,?c2 ,?c3)))
          (points-at ,?page ,?button)
-         (newly-pointed-at ,?p #t)
+         (was-pointed-at ,?p #f)
          (button ,?button (,?p ,?x ,?y yellow)))
    do (cond
         [(and (= ?x 1) (= ?y 2))
@@ -353,6 +365,71 @@
            (wish-updates ?p `((3 2 yellow) (3 3 ,?b3)))]))
 )))
 
+; third sanctum puzzle
+(define page7 (add-page (make-page-code
+  (define init '((black yellow  gray)
+                 (yellow green  yellow)
+                 (gray yellow   black)))
+  (define solution 'black)
+
+  (Claim this 'mora-jai solution)
+
+  (define solved #f)
+  (define pointed-at #f)
+  (define pointed-at-prev #f)
+
+  (define state (make-hashtable))
+
+  (let loop-rows ((row init) (y 1))
+    (when (pair? row)
+      (let loop-cols ((col (car row)) (x 1))
+        (when (pair? col)
+          (hashtable-set! state (cons x y) (car col))
+          (loop-cols (cdr col) (+ x 1))))
+      (loop-rows (cdr row) (+ y 1)))) 
+
+  (define (state-list)
+    (let row-loop ((y 1) (rows '()))
+      (if (> y 3)
+          (reverse rows)
+          (let col-loop ((x 1) (cols '()))
+            (if (> x 3)
+                (row-loop (+ y 1) (cons (reverse cols) rows))
+                (col-loop (+ x 1) (cons (hashtable-ref state (cons x y) #f) cols)))))))
+
+  (define (claim-state)
+    ; we know this runs each iteration at the start
+    (set! pointed-at-prev pointed-at)
+    (set! pointed-at #f)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this was-pointed-at ,pointed-at-prev)) #t)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this was-pointed-at ,pointed-at-prev) #t)
+    (Claim this 'was-pointed-at pointed-at-prev)
+    (let ((state (state-list)))
+      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-state ,state)) #t)
+      (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
+      (Claim this 'mora-jai-state state)))
+
+  ; i.e. forever, but conditional claims since our state will change
+  (When ((mora-jai ,this ,?sol)) do
+    (claim-state))
+
+  (When ((points-at ,?p ,?button)
+         (button ,?button (,this ,?x ,?y ,?color)))
+   do 
+      ; this line needed to not make things blow up?!?
+      (console-log (format #f "pointing at ~a,~a: ~a" ?x ?y ?color))
+      (set! pointed-at #t))
+
+  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
+   do 
+      ; this line needed to not make things blow up?!?
+      (console-log (format #f "update ~a,~a to ~a" ?x ?y ?color))
+      (hashtable-set! state (cons ?x ?y) ?color))
+
+  (When ((is-solved ,this #t))
+   do (set! solved #t))
+)))
+
 (define page1div (get-page page1))
 (append-child! pages page1div)
 (define page2div (get-page page2))
@@ -365,21 +442,25 @@
 (append-child! pages page5div)
 (define page6div (get-page page6))
 (append-child! pages page6div)
+(define page7div (get-page page7))
+(append-child! pages page7div)
 (define (add-text pagediv text)
   (let ((div (make-element "div")))
     (append-child! div (make-text-node text))
     (append-child! pagediv div)))
-(add-text page1div "orinda box")
+(add-text page1div "orinda aries")
 (add-text page2div "engine")
 (add-text page3div "whiskers")
 (add-text page4div "black")
 (add-text page5div "green")
 (add-text page6div "yellow")
+(add-text page7div "arch aries")
 (set-style-left! page1div "20vw")
 (set-style-left! page2div "30vw")
 (set-style-left! page3div "40vw")
 (set-style-left! page4div "50vw")
 (set-style-left! page5div "60vw")
 (set-style-left! page6div "70vw")
+(set-style-left! page7div "80vw")
 
 (recalculate-pages)

@@ -17,36 +17,74 @@
     <p>Warning: spoilers for the game <a href="https://www.blueprincegame.com/">Blue Prince</a>. Scroll past the table if you want to know more.</p>
     <div id=pages class="pages"></div>
     <p id=table class="table" style="height:60vh; width:60vh;"></p>
-    <p>Note: squares are touched by pointing the whisker at their center.
-       In order to not trigger two button presses in a row, the whisker needs to be removed before a new press can be registered.</p>
+    <p>Note: buttons are touched by pointing the whisker at their center.
+       In order to not trigger two button presses in a row, the whisker needs to be removed before a new press can be registered.
+       This can be done a lot better using for example <a href="https://folk.computer/guides/button">Folk Computer</a>-style physical paper buttons.</p>
     <p>In the game, Mora-Jai puzzle boxes are a recurring puzzle whose ruleset is a puzzle in itself.
-       The goal of a puzzle is to make certain colors appear at the corners: most often four of the same color.
+       The goal of a puzzle box is to make certain colors appear at the corners.
        The Orinda Aries puzzle is found behind the first door of the Inner Sanctum and requires four black squares at the corners to be solved.
-       Pressing a square can make the squares change position or color, depending on the color of the square pressed and its position.</p>
+       Pressing a button can make it and other squares change position or color, depending on its state and that of the others.</p>
     <p>The pages green, yellow and black each describe different behaviours of colored squares.
-       Those squares will only function when their page is active on the table.
+       Buttons will only function when the page matching their color is active on the table.
        As an example, here is the code for the black page:</p>
     <div class=code>
   (define (rotate page y x1 x2 x3)
-    (wish-update page 1 y x3)
-    (wish-update page 2 y x1)
-    (wish-update page 3 y x2))
+    (Wish page 'updates `(1 ,y ,x3))
+    (Wish page 'updates `(2 ,y ,x1))
+    (Wish page 'updates `(3 ,y ,x2)))
 
-  (define (wish-update page x y color)
-    (let ((args `(,x ,y ,color)))
-      (Wish page 'updates args)))
-
-  ; we could duplicate Whens with hardcoded y instead of using cond
-  (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
+  (When ((points-at ,?pointer ,?button)
+         (was-pointed-at ,?p #f)
+         (button ,?button (,?p ,?x ,?y black))
+         (mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
                               (,?b1 ,?b2 ,?b3)
-                              (,?c1 ,?c2 ,?c3)))
-         (points-at ,?page ,?button)
-         (button ,?button (,?p ,?x ,?y black)))
+                              (,?c1 ,?c2 ,?c3))))
    do (cond
         [(= ?y 1) (rotate ?p ?y ?a1 ?a2 ?a3)]
         [(= ?y 2) (rotate ?p ?y ?b1 ?b2 ?b3)]
         [(= ?y 3) (rotate ?p ?y ?c1 ?c2 ?c3)]))
     </div>
+    <p>Black squares rotate the row they are on to the right, with the rightmost square looping back around to the left.
+       Yellow squares swap with the square above, and green squares swap with the square opposite from the center.
+       If you wanted to test different behaviour you could make another page that defines update rules and swap it on the table.
+       The rest of the system will keep state, so this is a neat way to do some live testing of interactions.</p>
+    <p>This is all made possible by decoupling logic into different pages and forcing them to interact through RealTalk.
+       The box page itself maintains the state of the puzzle locally and defines both the initial state and the solution.
+       The engine page is the glue between puzzle boxes and specific color behaviour definitions.</p>
+    <div class=code>
+(define orinda-aries (add-page (make-page-code
+  (define init '((green black  green)
+                 (black black  black)
+                 (green yellow green)))
+  (define solution 'black)
+
+  (Claim this 'mora-jai solution)
+
+  (define pointed-at #f)
+  (define pointed-at-prev #f)
+  (define state (make-hashtable))
+
+  (When ((mora-jai ,this ,?sol)) do
+    (set! pointed-at-prev pointed-at)
+    (set! pointed-at #f)
+    (Claim this 'was-pointed-at pointed-at-prev)
+    (Claim this 'mora-jai-state (state-list)))
+
+  (When ((points-at ,?p ,?button)
+         (button ,?button (,this ,?x ,?y ,?color)))
+   do (set! pointed-at #t))
+
+  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
+   do (hashtable-set! state (cons ?x ?y) ?color))
+
+  ; not shown: initialise state from init on page load,
+  ; function (state-list) to get list back from hashmap
+)))
+    </div>
+    <p>The above code is the page code for the Orinda Aries puzzle.
+       Omitted code for translating between hashmap and list representation of state is another 15 lines.
+       In order to create a new puzzle, we can simply copy all of this code and change the initial state and solution at the top.
+       In Dynamicland new pages are often created this way, by editing an existing page and creating a new copy from the edited version.</p>
     <p>WIP: discussion on DRY principles and puzzle page declaration, where and how to keep state, swapping out pages to redeclare square color behaviour, resetting the puzzle by swapping page in/out of the table.</p>
     </main>
   </body>

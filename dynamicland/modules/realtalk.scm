@@ -16,6 +16,15 @@
 ; RealTalk
 ; note: 'this' will have to be set within each page execution somehow?
 ; code to be executed is compiled in 'when' so we inject it there using (lambda (page) f ...)
+
+; known bugs:
+; - crash when a rule fires, sometimes fixed when adding a statement such as display or console-log?
+; --> try to gensym the code lambda and look up implementation in a weak-hashtable by gensym key?
+; - derived Claim/Wish is not supported in When macro, 'this' keyword not available
+; --> see below, inject 'this' explicitly in embedded Claim/Wish. Disallow nested When rules
+; - derived Claim/Wish is not supported in When macro, behaviour should be different
+; --> When macro replaces Claim/Wish with DerivedClaim/DerivedWish?
+
 (define-syntax Claim
   (lambda (stx)
     (syntax-case stx ()
@@ -91,13 +100,12 @@
             (st-datums (syntax->datum #'(statement ...)))
             (replaced-statements (replace-symbols st-datums sym->gen))
             (replaced-conditions (replace-symbols datums sym->gen)))
-       #`(begin
-           (let* ((code `,(lambda (this #,@gens) (begin #,@replaced-statements)))
-                  (rule (fresh-vars #,numvars (lambda (q #,@gens)
+       #`(let* ((code `,(lambda (this #,@gens) (begin #,@replaced-statements)))
+                (rule (fresh-vars #,numvars (lambda (q #,@gens)
                           (conj (equalo q (list this 'code (cons code (list #,@gens))))
                                 (dl-findo (get-dl) #,replaced-conditions))))))
              (dl-assert! (get-dl) this 'rules rule)
-             (dl-assert-rule! (get-dl) rule)))))))))
+             (dl-assert-rule! (get-dl) rule))))))))
 
 (define-syntax make-page-code
   (lambda (stx)

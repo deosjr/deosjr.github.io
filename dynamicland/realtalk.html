@@ -115,14 +115,13 @@
             (dl-findo dl #,replaced-body) )))))))))
 
 ; modules/realtalk:When
-#`(begin
-    (let* ((code `,(lambda (this #,@gens) (begin #,@replaced-statements)))
-           (rule (fresh-vars #,numvars (lambda (q #,@gens)
+#`(let* ((code `,(lambda (this #,@gens) (begin #,@replaced-statements)))
+         (rule (fresh-vars #,numvars (lambda (q #,@gens)
                    ; construct expected tuple output
                    (conj (equalo q (list this 'code (cons code (list #,@gens))))
                          (dl-findo (get-dl) #,replaced-conditions))))))
       (dl-assert! (get-dl) this 'rules rule)
-      (dl-assert-rule! (get-dl) rule)))))))))
+      (dl-assert-rule! (get-dl) rule))))))))
     </div>
     <p>There are still things to solve here, but this version can already do some powerful things.
        For example, we can now write the following to define a page:</p>
