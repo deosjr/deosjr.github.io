@@ -1,8 +1,16 @@
+setInterval(() => {
+    const event = new Event("update-realtalk");
+    window.dispatchEvent(event);
+}, 100)
+
 window.addEventListener("load", async () => {
   try {
     await Scheme.load_main("variables.wasm", {
       reflect_wasm_dir: ".",
       user_imports: {
+        window: {
+          window() { return window; }
+        },
         document: {
           body() { return document.body; },
           getElementById: Document.prototype.getElementById.bind(document),

@@ -1,9 +1,17 @@
 (use-modules (dom js)
              (datalog)
              (realtalk)
+             (hoot ffi)
              (hoot hashtables))
 
 (define pages (get-element-by-id "pages"))
+
+(define-foreign window
+    "window" "window"
+    -> (ref null extern))
+
+(add-event-listener! (window) "update-realtalk" (procedure->external (lambda (e)
+  (recalculate-pages))))
 
 (define page1 (add-page (make-page-code
   ; variables in page scope
