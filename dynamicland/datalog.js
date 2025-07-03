@@ -14,11 +14,13 @@ window.addEventListener("load", async () => {
           setAttribute(elem, name, value) { elem.setAttribute(name, value); },
           setStyle(elem, value) { elem.style = value },
           setBackground(elem, value) { elem.style.background = value },
+          addClass(elem, className) { elem.classList.add(className); },
           setZIndex(elem, value) { elem.style.zIndex = value },
           setLeft(elem, value) { elem.style.left = value },
           setTop(elem, value) { elem.style.top = value },
           setTransform(elem, value) { elem.style.transform = value },
           setPosition(elem, value) { elem.style.position = value },
+          setInnerHTML(elem, value) { elem.innerHTML = value },
           getZIndex(elem) { return elem.style.zIndex },
           getLeft(elem) { return elem.style.left },
           getTop(elem) { return elem.style.top },
@@ -33,7 +35,8 @@ window.addEventListener("load", async () => {
           getY(elem) { return elem.y },
           getWidth(elem) { return elem.width },
           getHeight(elem) { return elem.height },
-          focus(elem) { elem.focus(); }
+          focus(elem) { elem.focus(); },
+          querySelector(elem, string) { return elem.querySelector(string); }
         },
         event: {
           preventDefault(e) { e.preventDefault() },
