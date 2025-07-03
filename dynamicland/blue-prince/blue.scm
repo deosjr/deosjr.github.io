@@ -4,6 +4,9 @@
              (hoot ffi)
              (hoot hashtables))
 
+(define-foreign window
+    "window" "window"
+    -> (ref null extern))
 (define-foreign console-log
     "console" "log"
     (ref string) -> none)
@@ -13,6 +16,9 @@
 (define-foreign set-property!
     "element" "setProperty"
     (ref null extern) (ref string) (ref string) -> none)
+
+(add-event-listener! (window) "update-realtalk" (procedure->external (lambda (e)
+  (recalculate-pages))))
 
 ; The idea: pages can be mora-jai puzzle boxes, declaring initial position and solution conditions.
 ; They project nine squares and are stateful. Squares can be 'pushed' by pointing at the center (-ish).
@@ -38,8 +44,15 @@
 ; This feels abuse though, and is probably not what we want.
 ; I imagine immutable Claims will be useful when execution contexts span multiple host computers.
 
-; Multiple pointers pointing at buttons: unsolved
-; Edge detection as in variables demo (not pointing at smth): unsolved
+; Figuring out how to detect the puzzle is solved is another interesting topic.
+; I started with claiming updates per button individually. 
+; This would lead to solution state being detected 'halfway through' an update.
+; Also, the old claimed state (mora-jai-state) clashes, which makes things hard
+; If solution is checked on mora-jai-state, it is only found _next_ iteration of fixpoint
+; Next I batched the updates into one big wish, and claimed a mora-jai-state-final when that was received
+; This works (solution is checked on final state) but feels.. forced?
+; Basically writing code that understands a lot of the internal operating mechanism instead of just declaring facts
+; Solution: simplify by depending on recalculate-pages running often and automatically?
 
 ; puzzle state: ( ( a1 a2 a3 )
 ;                 ( b1 b2 b3 )
@@ -51,6 +64,8 @@
 ; first sanctum puzzle
 (define page1 (add-page (make-page-code
   (define solved #f)
+  (define pointed-at #f)
+  (define pointed-at-prev #f)
   (define solution 'black)
   (define init '((green black  green)
                  (black black  black)
@@ -73,6 +88,9 @@
   (Claim this 'mora-jai solution)
 
   (define (claim-state)
+    ; we know this runs each iteration at the start
+    (set! pointed-at-prev pointed-at)
+    (set! pointed-at #f)
     ; todo: not pretty, but works
     (let ((state `(
       ( ,(hashtable-ref state (cons 1 1) #f) ,(hashtable-ref state (cons 2 1) #f) ,(hashtable-ref state (cons 3 1) #f) )
@@ -83,56 +101,24 @@
     (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
     (Claim this 'mora-jai-state state)))
 
-  (define (claim-final-state)
-    ; todo: not pretty, but works
-    (let ((state `(
-      ( ,(hashtable-ref state (cons 1 1) #f) ,(hashtable-ref state (cons 2 1) #f) ,(hashtable-ref state (cons 3 1) #f) )
-      ( ,(hashtable-ref state (cons 1 2) #f) ,(hashtable-ref state (cons 2 2) #f) ,(hashtable-ref state (cons 3 2) #f) )
-      ( ,(hashtable-ref state (cons 1 3) #f) ,(hashtable-ref state (cons 2 3) #f) ,(hashtable-ref state (cons 3 3) #f) )
-    )))
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-final-state ,state)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-final-state ,state) #t)
-    (Claim this 'mora-jai-final-state state)))
-
   ; i.e. forever, but conditional claims since our state will change
   (When ((mora-jai ,this ,?sol)) do
     (claim-state))
 
-  (define (wish-update-draw x y c)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,(cons x y) updates ,c)) #t)
-    (Wish (cons x y) 'updates c))
+  (define (claim-newly-pointed-at)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this newly-pointed-at #t)) #t)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this newly-pointed-at #t) #t)
+    (Claim this 'newly-pointed-at #t))
 
-  ; using init as state and set! to update the list blows everything up
-  ; so we rely on an internal hashmap for color state
-  ; note: the entire state has already been claimed at start of fixpoint
-  ; perhaps we can set the color style of that button in this iteration? -> see engine page
-  (When ((wishes ,?p (,this updates ((,?x1 ,?y1 ,?c1) (,?x2 ,?y2 ,?c2)))))
-   do (hashtable-set! state (cons ?x1 ?y1) ?c1)
-      (wish-update-draw ?x1 ?y1 ?c1)
-      (hashtable-set! state (cons ?x2 ?y2) ?c2)
-      (wish-update-draw ?x2 ?y2 ?c2)
-      (claim-final-state))
-  (When ((wishes ,?p (,this updates ((,?x1 ,?y1 ,?c1) (,?x2 ,?y2 ,?c2) (,?x3 ,?y3 ,?c3)))))
-   do (hashtable-set! state (cons ?x1 ?y1) ?c1)
-      (wish-update-draw ?x1 ?y1 ?c1)
-      (hashtable-set! state (cons ?x2 ?y2) ?c2)
-      (wish-update-draw ?x2 ?y2 ?c2)
-      (hashtable-set! state (cons ?x3 ?y3) ?c3)
-      (wish-update-draw ?x3 ?y3 ?c3)
-      (claim-final-state))
-#|
-  ; todo: this is slow because ?updates matches many times if not unpacked
-  (When ((wishes ,?p (,this updates ,?updates))) 
-   do (for-each (lambda (update)
-        (let ((x (car update))
-              (y (cadr update))
-              (c (caddr update)))
-          (hashtable-set! state (cons x y) c)   
-          (console-log (format #f "update: ~a,~a -> ~a" x y c))
-          (wish-update-draw x y c)
-        )) ?updates)
-      (claim-final-state))
-|#
+  (When ((points-at ,?p ,?button)
+         (button ,?button (,this ,?x ,?y ,?color)))
+   do (set! pointed-at #t)
+      (if (not pointed-at-prev) (claim-newly-pointed-at)))
+
+  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
+   do (hashtable-set! state (cons ?x ?y) ?color)
+      ; this line needed to not make things blow up?!?
+      (console-log (format #f "update ~a,~a to ~a" ?x ?y ?color)))
 )))
 
 ; engine (offload as much logic as possible from a page without keeping its state)
@@ -215,7 +201,7 @@
 
   ; update the button color immediately
   ; note that get-property is defined to return an external ref to make this work
-  (When ((wishes ,?wisher ((,?x . ,?y) updates ,?color))
+  (When ((wishes ,?wisher (,?p updates (,?x ,?y ,?color)))
          (button ,?button (,?p ,?x ,?y ,?old)))
    do (set-property! (get-property ?button "style") "background" (symbol->string ?color)))
 
@@ -225,10 +211,13 @@
     (hashtable-set! (datalog-idb (get-dl)) `(,p is-solved #t) #t)
     (Claim p 'is-solved #t))
 
+  ; note: solution is only found next iteration
+  ; todo: if solution 'locks' the puzzle, is there still a race in evaluation?
+  ; i.e. can an update trigger in between, locking the puzzle in an invalid state?
   (When ((mora-jai ,?p ,?sn)
-         (mora-jai-final-state ,?p ((,?sn ,?a2 ,?sn)
-                                    (,?b1 ,?b2 ,?b3)
-                                    (,?sn ,?c2 ,?sn))))
+         (mora-jai-state ,?p ((,?sn ,?a2 ,?sn)
+                              (,?b1 ,?b2 ,?b3)
+                              (,?sn ,?c2 ,?sn))))
    do (claim-solved ?p))
 
   (When ((is-solved ,?p #t))
@@ -282,8 +271,10 @@
 
 (define page4 (add-page (make-page-code
   (define (wish-updates page updates)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,updates)) #t)
-    (Wish page 'updates updates))
+    (for-each (lambda (update) 
+      (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,update)) #t)
+      (Wish page 'updates update))
+    updates))
 
   (define (rotate page y x1 x2 x3)
     (wish-updates page `((1 ,y ,x3) (2 ,y ,x1) (3 ,y ,x2))))
@@ -294,6 +285,7 @@
                               (,?b1 ,?b2 ,?b3)
                               (,?c1 ,?c2 ,?c3)))
          (points-at ,?page ,?button)
+         (newly-pointed-at ,?p #t)
          (button ,?button (,?p ,?x ,?y black)))
    do (cond
         [(= ?y 1) (rotate ?p ?y ?a1 ?a2 ?a3)]
@@ -303,13 +295,16 @@
 
 (define page5 (add-page (make-page-code
   (define (wish-updates page updates)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,updates)) #t)
-    (Wish page 'updates updates))
+    (for-each (lambda (update) 
+      (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,update)) #t)
+      (Wish page 'updates update))
+    updates))
 
   (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
                               (,?b1 ,?b2 ,?b3)
                               (,?c1 ,?c2 ,?c3)))
          (points-at ,?page ,?button)
+         (newly-pointed-at ,?p #t)
          (button ,?button (,?p ,?x ,?y green)))
    do (cond
         [(and (= ?x 1) (= ?y 1))
@@ -332,13 +327,16 @@
 
 (define page6 (add-page (make-page-code
   (define (wish-updates page updates)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,updates)) #t)
-    (Wish page 'updates updates))
+    (for-each (lambda (update) 
+      (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,update)) #t)
+      (Wish page 'updates update))
+    updates))
 
   (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
                               (,?b1 ,?b2 ,?b3)
                               (,?c1 ,?c2 ,?c3)))
          (points-at ,?page ,?button)
+         (newly-pointed-at ,?p #t)
          (button ,?button (,?p ,?x ,?y yellow)))
    do (cond
         [(and (= ?x 1) (= ?y 2))

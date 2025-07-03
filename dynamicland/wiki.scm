@@ -4,6 +4,10 @@
              (hoot ffi)
              (hoot hashtables))
 
+; todo: write about how extending 'pointing at things' was made easy
+; by having existing whisker page claim 'you point at this coordinate'
+; it could be reused as-is and 'you point at a link' can be on the wiki page
+
 (define-foreign window
     "window" "window"
     -> (ref null extern))
