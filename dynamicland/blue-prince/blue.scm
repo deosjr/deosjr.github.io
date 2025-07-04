@@ -65,7 +65,7 @@
 (define pages (get-element-by-id "pages"))
 
 ; first sanctum puzzle
-(define page1 (add-page (make-page-code
+(define orinda (add-page (make-page-code
   (define solved #f)
   (define pointed-at #f)
   (define pointed-at-prev #f)
@@ -128,7 +128,7 @@
 )))
 
 ; engine (offload as much logic as possible from a page without keeping its state)
-(define page2 (add-page (make-page-code
+(define engine (add-page (make-page-code
   ; todo: define a stylesheet with a class and add to DOM? what would be cleaner?
   (define stylefmt "left:~apx;top:~apx;width:~apx;height:~apx;background:~a;position:absolute;opacity:0.7;border-style:solid;")
   ;(define stylefmt "left:~apx;top:~apx;width:~apx;height:~apx;background:~a;position:absolute;opacity:0.7;border-style:solid;align-content:center;justify-items:center;")
@@ -231,7 +231,7 @@
 )))
 
 ; whiskers. doubles as a pointing device!
-(define page3 (add-page (make-page-code
+(define whiskers (add-page (make-page-code
   (Wish this 'has-whiskers #t)
 
   (define (claim-has-whiskers p)
@@ -275,7 +275,7 @@
          (claim-point-at ?p ?q)))
 )))
 
-(define page4 (add-page (make-page-code
+(define blackpage (add-page (make-page-code
   (define (wish-updates page updates)
     (for-each (lambda (update) 
       (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,update)) #t)
@@ -299,7 +299,7 @@
         [(= ?y 3) (rotate ?p ?y ?c1 ?c2 ?c3)]))
 )))
 
-(define page5 (add-page (make-page-code
+(define greenpage (add-page (make-page-code
   (define (wish-updates page updates)
     (for-each (lambda (update) 
       (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,update)) #t)
@@ -331,7 +331,7 @@
            (wish-updates ?p `((1 1 green) (3 3 ,?a1)))]))
 )))
 
-(define page6 (add-page (make-page-code
+(define yellowpage (add-page (make-page-code
   (define (wish-updates page updates)
     (for-each (lambda (update) 
       (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,update)) #t)
@@ -359,8 +359,58 @@
            (wish-updates ?p `((3 2 yellow) (3 3 ,?b3)))]))
 )))
 
+(define orangepage (add-page (make-page-code
+  (define (wish-updates page updates)
+    (for-each (lambda (update) 
+      (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,update)) #t)
+      (Wish page 'updates update))
+    updates))
+
+  (define (count-color color lst)
+    (length (filter (lambda (x) (equal? x color)) lst)))
+
+  (define (majority-color? colors)
+    (define half (/ (length colors) 2.0))
+    (define (check lst)
+      (cond
+        ((null? lst) #f)
+        ((> (count-color (car lst) colors) half) (car lst))
+        (else (check (cdr lst)))))
+    (check colors))
+
+  (define (switch-if-majority page x y neighbours)
+    (let ((majority (majority-color? neighbours)))
+      (if majority (wish-updates page `((,x ,y ,majority)) ))))
+
+  (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
+                              (,?b1 ,?b2 ,?b3)
+                              (,?c1 ,?c2 ,?c3)))
+         (points-at ,?page ,?button)
+         (was-pointed-at ,?p #f)
+         (button ,?button (,?p ,?x ,?y orange)))
+   do (cond
+        [(and (= ?x 1) (= ?y 1))
+           (switch-if-majority ?p ?x ?y (list ?b1 ?a2))]
+        [(and (= ?x 2) (= ?y 1))
+           (switch-if-majority ?p ?x ?y (list ?a1 ?b2 ?a3))]
+        [(and (= ?x 3) (= ?y 1))
+           (switch-if-majority ?p ?x ?y (list ?a2 ?b3))]
+        [(and (= ?x 1) (= ?y 2))
+           (switch-if-majority ?p ?x ?y (list ?a1 ?b2 ?c1))]
+        [(and (= ?x 2) (= ?y 2))
+           (switch-if-majority ?p ?x ?y (list ?a2 ?b1 ?b3 ?c2))]
+        [(and (= ?x 3) (= ?y 2))
+           (switch-if-majority ?p ?x ?y (list ?a3 ?b2 ?c3))]
+        [(and (= ?x 1) (= ?y 3))
+           (switch-if-majority ?p ?x ?y (list ?b1 ?c2))]
+        [(and (= ?x 2) (= ?y 3))
+           (switch-if-majority ?p ?x ?y (list ?c1 ?b2 ?c3))]
+        [(and (= ?x 3) (= ?y 3))
+           (switch-if-majority ?p ?x ?y (list ?c2 ?b3))]))
+)))
+
 ; third sanctum puzzle
-(define page7 (add-page (make-page-code
+(define archaries (add-page (make-page-code
   (define init '((black yellow  gray)
                  (yellow green  yellow)
                  (gray yellow   black)))
@@ -418,37 +468,50 @@
    do (set! solved #t))
 )))
 
-(define page1div (get-page page1))
-(append-child! pages page1div)
-(define page2div (get-page page2))
-(append-child! pages page2div)
-(define page3div (get-page page3))
-(append-child! pages page3div)
-(define page4div (get-page page4))
-(append-child! pages page4div)
-(define page5div (get-page page5))
-(append-child! pages page5div)
-(define page6div (get-page page6))
-(append-child! pages page6div)
-(define page7div (get-page page7))
-(append-child! pages page7div)
 (define (add-text pagediv text)
   (let ((div (make-element "div")))
     (append-child! div (make-text-node text))
     (append-child! pagediv div)))
-(add-text page1div "orinda aries")
-(add-text page2div "engine")
-(add-text page3div "whiskers")
-(add-text page4div "black")
-(add-text page5div "green")
-(add-text page6div "yellow")
-(add-text page7div "arch aries")
-(set-style-left! page1div "20vw")
-(set-style-left! page2div "30vw")
-(set-style-left! page3div "40vw")
-(set-style-left! page4div "50vw")
-(set-style-left! page5div "60vw")
-(set-style-left! page6div "70vw")
-(set-style-left! page7div "80vw")
+
+(define orinda-div (get-page orinda))
+(add-text orinda-div "orinda aries")
+(append-child! pages orinda-div)
+
+(define engine-div (get-page engine))
+(append-child! pages engine-div)
+(add-text engine-div "engine")
+
+(define whiskers-div (get-page whiskers))
+(append-child! pages whiskers-div)
+(add-text whiskers-div "whiskers")
+
+(define blackpage-div (get-page blackpage))
+(append-child! pages blackpage-div)
+(add-text blackpage-div "black")
+
+(define greenpage-div (get-page greenpage))
+(append-child! pages greenpage-div)
+(add-text greenpage-div "green")
+
+(define yellowpage-div (get-page yellowpage))
+(append-child! pages yellowpage-div)
+(add-text yellowpage-div "yellow")
+
+(define orangepage-div (get-page orangepage))
+(append-child! pages orangepage-div)
+(add-text orangepage-div "orange")
+
+(define archaries-div (get-page archaries))
+(append-child! pages archaries-div)
+(add-text archaries-div "arch aries")
+
+(set-style-left! orinda-div "20vw")
+(set-style-left! engine-div "30vw")
+(set-style-left! whiskers-div "40vw")
+(set-style-left! blackpage-div "50vw")
+(set-style-left! greenpage-div "60vw")
+(set-style-left! yellowpage-div "70vw")
+(set-style-left! archaries-div "80vw")
+(set-style-left! orangepage-div "90vw")
 
 (recalculate-pages)

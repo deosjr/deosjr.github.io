@@ -19,6 +19,7 @@
 ; code to be executed is compiled in 'when' so we inject it there using (lambda (page) f ...)
 
 ; known bugs:
+; - not fully matching/unpacking a complex list in When condition leads to arbitrary multiple executions?
 ; - derived Claim/Wish is not supported in When macro, 'this' keyword not available
 ; --> see below, inject 'this' explicitly in embedded Claim/Wish. Disallow nested When rules
 ; - derived Claim/Wish is not supported in When macro, behaviour should be different
