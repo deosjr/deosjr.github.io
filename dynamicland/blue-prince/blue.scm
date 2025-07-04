@@ -409,6 +409,34 @@
            (switch-if-majority ?p ?x ?y (list ?c2 ?b3))]))
 )))
 
+(define violetpage (add-page (make-page-code
+  (define (wish-updates page updates)
+    (for-each (lambda (update) 
+      (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,update)) #t)
+      (Wish page 'updates update))
+    updates))
+
+  (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
+                              (,?b1 ,?b2 ,?b3)
+                              (,?c1 ,?c2 ,?c3)))
+         (points-at ,?page ,?button)
+         (was-pointed-at ,?p #f)
+         (button ,?button (,?p ,?x ,?y yellow)))
+   do (cond
+        [(and (= ?x 1) (= ?y 1))
+           (wish-updates ?p `((1 2 violet) (1 1 ,?b1)))]
+        [(and (= ?x 2) (= ?y 1))
+           (wish-updates ?p `((2 2 violet) (2 l ,?b2)))]
+        [(and (= ?x 3) (= ?y 1))
+           (wish-updates ?p `((3 1 violet) (3 2 ,?b3)))]
+        [(and (= ?x 1) (= ?y 2))
+           (wish-updates ?p `((1 3 violet) (1 2 ,?c1)))]
+        [(and (= ?x 2) (= ?y 2))
+           (wish-updates ?p `((2 3 violet) (2 2 ,?c2)))]
+        [(and (= ?x 3) (= ?y 2))
+           (wish-updates ?p `((3 3 violet) (3 2 ,?c3)))]))
+)))
+
 ; third sanctum puzzle
 (define archaries (add-page (make-page-code
   (define init '((black yellow  gray)
@@ -501,17 +529,22 @@
 (append-child! pages orangepage-div)
 (add-text orangepage-div "orange")
 
+(define violetpage-div (get-page violetpage))
+(append-child! pages violetpage-div)
+(add-text violetpage-div "violet")
+
 (define archaries-div (get-page archaries))
 (append-child! pages archaries-div)
 (add-text archaries-div "arch aries")
 
-(set-style-left! orinda-div "20vw")
+(set-style-left! orinda-div "10vw")
+(set-style-left! archaries-div "20vw")
 (set-style-left! engine-div "30vw")
 (set-style-left! whiskers-div "40vw")
 (set-style-left! blackpage-div "50vw")
 (set-style-left! greenpage-div "60vw")
 (set-style-left! yellowpage-div "70vw")
-(set-style-left! archaries-div "80vw")
+(set-style-left! voiletpage-div "80vw")
 (set-style-left! orangepage-div "90vw")
 
 (recalculate-pages)
