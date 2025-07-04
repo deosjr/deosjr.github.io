@@ -443,17 +443,128 @@
 
 ; third sanctum puzzle
 (define archaries (add-page (make-page-code
-#|
   (define init '((black yellow  gray)
                  (yellow green  yellow)
                  (gray yellow   black)))
   (define solution 'yellow)
-|#
-  ; test: corarica
+
+  (Claim this 'mora-jai solution)
+
+  (define solved #f)
+  (define pointed-at #f)
+  (define pointed-at-prev #f)
+
+  (define state (make-hashtable))
+
+  (let loop-rows ((row init) (y 1))
+    (when (pair? row)
+      (let loop-cols ((col (car row)) (x 1))
+        (when (pair? col)
+          (hashtable-set! state (cons x y) (car col))
+          (loop-cols (cdr col) (+ x 1))))
+      (loop-rows (cdr row) (+ y 1)))) 
+
+  (define (state-list)
+    (let row-loop ((y 1) (rows '()))
+      (if (> y 3)
+          (reverse rows)
+          (let col-loop ((x 1) (cols '()))
+            (if (> x 3)
+                (row-loop (+ y 1) (cons (reverse cols) rows))
+                (col-loop (+ x 1) (cons (hashtable-ref state (cons x y) #f) cols)))))))
+
+  (define (claim-state)
+    ; we know this runs each iteration at the start
+    (set! pointed-at-prev pointed-at)
+    (set! pointed-at #f)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this was-pointed-at ,pointed-at-prev)) #t)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this was-pointed-at ,pointed-at-prev) #t)
+    (Claim this 'was-pointed-at pointed-at-prev)
+    (let ((state (state-list)))
+      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-state ,state)) #t)
+      (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
+      (Claim this 'mora-jai-state state)))
+
+  ; i.e. forever, but conditional claims since our state will change
+  (When ((mora-jai ,this ,?sol)) do
+    (claim-state))
+
+  (When ((points-at ,?p ,?button)
+         (button ,?button (,this ,?x ,?y ,?color)))
+   do (set! pointed-at #t))
+
+  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
+   do (hashtable-set! state (cons ?x ?y) ?color))
+
+  (When ((is-solved ,this #t))
+   do (set! solved #t))
+)))
+
+; fifth sanctum puzzle
+(define corarica (add-page (make-page-code
   (define init '((orange black  orange)
                  (orange orange orange)
                  (violet green  violet)))
   (define solution 'orange)
+
+  (Claim this 'mora-jai solution)
+
+  (define solved #f)
+  (define pointed-at #f)
+  (define pointed-at-prev #f)
+
+  (define state (make-hashtable))
+
+  (let loop-rows ((row init) (y 1))
+    (when (pair? row)
+      (let loop-cols ((col (car row)) (x 1))
+        (when (pair? col)
+          (hashtable-set! state (cons x y) (car col))
+          (loop-cols (cdr col) (+ x 1))))
+      (loop-rows (cdr row) (+ y 1)))) 
+
+  (define (state-list)
+    (let row-loop ((y 1) (rows '()))
+      (if (> y 3)
+          (reverse rows)
+          (let col-loop ((x 1) (cols '()))
+            (if (> x 3)
+                (row-loop (+ y 1) (cons (reverse cols) rows))
+                (col-loop (+ x 1) (cons (hashtable-ref state (cons x y) #f) cols)))))))
+
+  (define (claim-state)
+    ; we know this runs each iteration at the start
+    (set! pointed-at-prev pointed-at)
+    (set! pointed-at #f)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this was-pointed-at ,pointed-at-prev)) #t)
+    (hashtable-set! (datalog-idb (get-dl)) `(,this was-pointed-at ,pointed-at-prev) #t)
+    (Claim this 'was-pointed-at pointed-at-prev)
+    (let ((state (state-list)))
+      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-state ,state)) #t)
+      (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
+      (Claim this 'mora-jai-state state)))
+
+  ; i.e. forever, but conditional claims since our state will change
+  (When ((mora-jai ,this ,?sol)) do
+    (claim-state))
+
+  (When ((points-at ,?p ,?button)
+         (button ,?button (,this ,?x ,?y ,?color)))
+   do (set! pointed-at #t))
+
+  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
+   do (hashtable-set! state (cons ?x ?y) ?color))
+
+  (When ((is-solved ,this #t))
+   do (set! solved #t))
+)))
+
+; eighth sanctum puzzle
+(define nuance (add-page (make-page-code
+  (define init '((green gray   green)
+                 (gray  orange orange)
+                 (gray  black  violet)))
+  (define solution 'green)
 
   (Claim this 'mora-jai solution)
 
@@ -520,6 +631,14 @@
 (append-child! pages archaries-div)
 (add-text archaries-div "arch aries")
 
+(define corarica-div (get-page corarica))
+(append-child! pages corarica-div)
+(add-text corarica-div "corarica")
+
+(define nuance-div (get-page nuance))
+(append-child! pages nuance-div)
+(add-text nuance-div "nuance")
+
 (define engine-div (get-page engine))
 (append-child! pages engine-div)
 (add-text engine-div "engine")
@@ -548,14 +667,16 @@
 (append-child! more-pages violetpage-div)
 (add-text violetpage-div "violet")
 
-(set-style-left! orinda-div "20vw")
-(set-style-left! archaries-div "40vw")
-(set-style-left! engine-div "60vw")
-(set-style-left! whiskers-div "80vw")
-(set-style-left! blackpage-div "10vw")
+(set-style-left! engine-div "20vw")
+(set-style-left! whiskers-div "30vw")
+(set-style-left! orinda-div "40vw")
+(set-style-left! archaries-div "50vw")
+(set-style-left! corarica-div "60vw")
+(set-style-left! nuance-div "70vw")
+(set-style-left! blackpage-div "20vw")
 (set-style-left! greenpage-div "30vw")
-(set-style-left! yellowpage-div "50vw")
-(set-style-left! violetpage-div "70vw")
-(set-style-left! orangepage-div "90vw")
+(set-style-left! yellowpage-div "40vw")
+(set-style-left! violetpage-div "50vw")
+(set-style-left! orangepage-div "60vw")
 
 (recalculate-pages)
