@@ -148,6 +148,9 @@
     (hashtable-set! (datalog-idb (get-dl)) `(,div button-div ,midpoint) #t)
     (Claim div 'button-div midpoint))
 
+  (define (color->string c)
+    (if (eq? c 'violet) "purple" (symbol->string c)))
+
   (define (claim-and-draw-button page cx cy w h color x y)
     (let* ((table-div (get-element-by-id "table"))
            (div (make-element "div"))
@@ -156,7 +159,7 @@
            (mx (+ x (/ w 2)))
            (my (+ y (/ h 2)))
            (mid (cons mx my)))
-      (set-attribute! div "style" (format #f stylefmt x y w h (symbol->string color)))
+      (set-attribute! div "style" (format #f stylefmt x y w h (color->string color)))
       ;(set-attribute! select "style" (format #f selectfmt diameter diameter))
       ;(append-child! div select)
       (append-child! table-div div)
@@ -210,7 +213,7 @@
   ; note that get-property is defined to return an external ref to make this work
   (When ((wishes ,?wisher (,?p updates (,?x ,?y ,?color)))
          (button ,?button (,?p ,?x ,?y ,?old)))
-   do (set-property! (get-property ?button "style") "background" (symbol->string ?color)))
+   do (set-property! (get-property ?button "style") "background" (color->string ?color)))
 
   ; todo: wish for p to be solved, and let p update its status + assert it each cycle?
   (define (claim-solved p)
@@ -440,17 +443,17 @@
 
 ; third sanctum puzzle
 (define archaries (add-page (make-page-code
+#|
   (define init '((black yellow  gray)
                  (yellow green  yellow)
                  (gray yellow   black)))
   (define solution 'yellow)
-#|
+|#
   ; test: corarica
   (define init '((orange black  orange)
                  (orange orange orange)
                  (violet green  violet)))
   (define solution 'orange)
-|#
 
   (Claim this 'mora-jai solution)
 
