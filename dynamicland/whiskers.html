@@ -14,11 +14,11 @@
       Chrome.
     </p>
     <h2>Whiskers</h2>
-    <p>Here are four pages. See if you can figure out what the first three do by dragging them onto the table below.
+    <p>Here are five pages. See if you can figure out what the first three do by dragging them onto the table below.
        If you are stuck, you can try using the fourth page as a hint.
        Try to make a guess before reading on (where I will explain).</p>
     <div id=pages class="pages"></div>
-    <p id=table class="table" style="height:60vh;"></p>
+    <div id=table class="table" style="height:60vh;"></div>
     <p>Hopefully you found that only when all three pages are live we get some interesting effect:
        when page #1 points at another page, that page turns green as long as page #1 keeps pointing at it!
        But as soon as one of the pages is removed, none of this functionality remains.
@@ -121,6 +121,9 @@
              (append-child! text-div p))) facts)
          (append-child! table-div text-div))))))
     </div>
+    <p>Finally, the fifth page uses SVG elements instead of CSS to draw whiskers. It also implements rotation.
+       The part that is still missing is checking whether the point of a whisker is contained in the div, not its bounding box.
+       This matters when pointing at a rotated div.</p>
     <p><a href="/dynamicland">Home</a></p>
     </main>
   </body>

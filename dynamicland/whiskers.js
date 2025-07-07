@@ -1,16 +1,31 @@
+setInterval(() => {
+    const event = new Event("update-realtalk");
+    window.dispatchEvent(event);
+}, 100)
+
 window.addEventListener("load", async () => {
   try {
     await Scheme.load_main("whiskers.wasm", {
       reflect_wasm_dir: ".",
       user_imports: {
+        window: {
+          window() { return window; },
+          getComputedStyle(elem) { return window.getComputedStyle(elem); }
+        },
         document: {
           body() { return document.body; },
           getElementById: Document.prototype.getElementById.bind(document),
           createTextNode: Document.prototype.createTextNode.bind(document),
-          createElement: Document.prototype.createElement.bind(document)
+          createElement: Document.prototype.createElement.bind(document),
+          createSVGElement(name) { return document.createElementNS("http://www.w3.org/2000/svg", name)}
+        },
+        console: {
+          log(str) { console.log(str); }
         },
         element: {
           removeElement(elem) { elem.remove(); },
+          getProperty(elem, key) { return elem[key]; },
+          setProperty(elem, key, value) { elem[key] = value; },
           setAttribute(elem, name, value) { elem.setAttribute(name, value); },
           setStyle(elem, value) { elem.style = value },
           setBackground(elem, value) { elem.style.background = value },

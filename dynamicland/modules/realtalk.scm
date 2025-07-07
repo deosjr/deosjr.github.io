@@ -235,6 +235,7 @@
 ; page dimensions are relative to the table they are on!
 (define (update-page-geometry pid div)
   (let* ((div (hashtable-ref *divs* pid #f))
+         (div-rotation (get-div-rotation div))
          (div-rect (get-bounding-client-rect div))
          (table (get-element-by-id "table"))
          (table-rect (get-bounding-client-rect table))
@@ -248,17 +249,20 @@
     (dl-assert! dl pid '(page left) (- divx tablex))
     (dl-assert! dl pid '(page top) (- divy tabley))
     (dl-assert! dl pid '(page width) div-width)
-    (dl-assert! dl pid '(page height) div-height)))
+    (dl-assert! dl pid '(page height) div-height)
+    (dl-assert! dl pid '(page rotation) div-rotation)))
 
 (define (retract-page-geometry pid)
   (let (( left (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page left) ,x) ))))))
         ( top (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page top) ,x) ))))))
         ( width (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page width) ,x) ))))))
-        ( height (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page height) ,x) )))))))
+        ( height (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page height) ,x) ))))))
+        ( rotation (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page rotation) ,x) )))))))
     (if (not (null? left)) (dl-retract! dl `(,pid (page left) ,(car left))))
     (if (not (null? top)) (dl-retract! dl `(,pid (page top) ,(car top))))
     (if (not (null? width)) (dl-retract! dl `(,pid (page width) ,(car width))))
-    (if (not (null? height)) (dl-retract! dl `(,pid (page height) ,(car height))))))
+    (if (not (null? height)) (dl-retract! dl `(,pid (page height) ,(car height))))
+    (if (not (null? rotation)) (dl-retract! dl `(,pid (page rotation) ,(car rotation))))))
 
 ; assumption: style.transform format is 'rotate(<DEGREES>deg)'
 (define (get-div-rotation div)
@@ -268,13 +272,14 @@
 
 (define (update-page-rotation div pid n)
   (let* ((div-rotation (get-div-rotation div))
+         (new-rotation (modulo (+ (get-div-rotation div) n) 360))
          (table (get-element-by-id "table"))
          (on-table ((on-table? table) pid)))
-    (set-style-transform! div (format #f "rotate(~adeg)" (modulo (+ (get-div-rotation div) n) 360) ))
+    (set-style-transform! div (format #f "rotate(~adeg)" new-rotation ))
     (if on-table
       (let ((rotation (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page rotation) ,x) )))))))
         (if (not (null? rotation)) (dl-retract! dl `(,pid (page rotation) ,(car rotation))))
-        (dl-assert! dl pid '(page rotation) div-rotation)
+        (dl-assert! dl pid '(page rotation) new-rotation)
         (recalculate-pages)))))
 
 ; only run page code when newly in bounds of table
