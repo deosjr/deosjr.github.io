@@ -132,12 +132,6 @@
 
 ; engine (offload as much logic as possible from a page without keeping its state)
 (define engine (add-page (make-page-code
-  ; todo: define a stylesheet with a class and add to DOM? what would be cleaner?
-  (define stylefmt "left:~apx;top:~apx;width:~apx;height:~apx;background:~a;position:absolute;opacity:0.7;border-style:solid;")
-  ;(define stylefmt "left:~apx;top:~apx;width:~apx;height:~apx;background:~a;position:absolute;opacity:0.7;border-style:solid;align-content:center;justify-items:center;")
-  ; todo: move this to the debug page?
-  ;(define selectfmt "border-radius:50%;border-style:solid;width:~apx;height:~apx;color:pink")
-
   (define select-radius 10)
   (define button-padding 5)
 
@@ -153,21 +147,22 @@
   (define (color->string c)
     (if (eq? c 'violet) "purple" (symbol->string c)))
 
+  ; todo: define a stylesheet with a class and add to DOM? what would be cleaner?
   (define (claim-and-draw-button page cx cy w h color x y)
     (let* ((table-div (get-element-by-id "table"))
-           ; todo: draw with svg?
-           (other-div (query-selector table-div "other"))
-           (div (make-element "div"))
-           ;(select (make-element "div"))
-           ;(diameter (* select-radius 2))
+           (svg (query-selector table-div "svg"))
+           (rect (make-svg-element "rect"))
            (mx (+ x (/ w 2)))
            (my (+ y (/ h 2)))
            (mid (cons mx my)))
-      (set-attribute! div "style" (format #f stylefmt x y w h (color->string color)))
-      ;(set-attribute! select "style" (format #f selectfmt diameter diameter))
-      ;(append-child! div select)
-      (append-child! other-div div)
-      (claim-button page div mid cx cy color)
+      (set-attribute! rect "width" (number->string w))
+      (set-attribute! rect "height" (number->string h))
+      (set-attribute! rect "x" (number->string x))
+      (set-attribute! rect "y" (number->string y))
+      (set-attribute! rect "fill" (color->string color))
+      (set-attribute! rect "style" "opacity:0.7;border-style:solid;")
+      (append-child! svg rect)
+      (claim-button page rect mid cx cy color)
   ))
 
   ; bug: not unpacking state leads to weird amounts of this rule executing
