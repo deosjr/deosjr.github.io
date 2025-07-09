@@ -7,9 +7,6 @@
 (define-foreign window
     "window" "window"
     -> (ref null extern))
-(define-foreign make-svg-element
-    "document" "createSVGElement"
-    (ref string) -> (ref null extern))
 (define-foreign computed-style
     "window" "getComputedStyle"
     (ref null extern) -> (ref null extern))
@@ -27,6 +24,8 @@
   (recalculate-pages))))
 
 (define pages (get-element-by-id "pages"))
+
+(make-dynamic)
 
 (define page1 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
@@ -117,6 +116,7 @@
              (idx (datalog-idx-entity dl))
              (facts (hashtable-keys (hashtable-ref idx ?p #f)))
              (table-div (get-element-by-id "table"))
+             (other-div (query-selector table-div "other"))
              (text-div (make-element "div")))
          (set-attribute! text-div "class" "text-projection")
          (set-style-left! text-div (format #f "~apx" (+ ?x ?w 10)))
@@ -127,7 +127,7 @@
              (append-child! text-div p)))
                ; 'code is used in fixpoint to not run conclusions of When's twice
                (filter (lambda (f) (not (eqv? (cadr f) 'code))) facts))
-         (append-child! table-div text-div))))))
+         (append-child! other-div text-div))))))
 
 ; whiskers, but improved. replaces page 2 and 3
 ; whisker length == page height
@@ -144,19 +144,6 @@
     (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p points-at ,q)) #t)
     (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
     (Claim p 'points-at q))
-
-  ; ie always, because recalc overwrites table. this should move to modules/realtalk
-  ; todo: table should get this once and reset inner html of the svg element only (even for text?)
-  (When (((page left) ,this ,?left)) do
-    (let* ((table-div (get-element-by-id "table"))
-           (table-rect (get-bounding-client-rect table-div))
-           (tw (get-width table-rect))
-           (th (get-height table-rect))
-           (svg (make-svg-element "svg")))
-      (set-attribute! svg "xmlns" "http://www.w3.org/2000/svg")
-      (set-attribute! svg "width" (format #f "~a" tw))
-      (set-attribute! svg "height" (format #f "~a" th))
-      (append-child! table-div svg)))
 
   (define pi 3.1415926536)
   (define (css-deg->radians deg)

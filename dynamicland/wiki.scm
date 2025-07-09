@@ -8,6 +8,8 @@
 ; by having existing whisker page claim 'you point at this coordinate'
 ; it could be reused as-is and 'you point at a link' can be on the wiki page
 
+(make-dynamic)
+
 (define-foreign window
     "window" "window"
     -> (ref null extern))
@@ -85,6 +87,7 @@
   (When ((wiki ,?p (,?x ,?y ,?w ,?topic))) do
     (let* ((text-div (make-element "div"))
            (table-div (get-element-by-id "table"))
+           (other-div (query-selector table-div "other"))
            (p (make-element "p"))
            (url (string-append urlpref ?topic))
            ; by experimentation: this is the first paragraph when returned by wiki REST API
@@ -95,7 +98,7 @@
       (set-style-top! text-div (format #f "~apx" ?y))
       (set-property! p "innerHTML" html)
       (append-child! text-div p)
-      (append-child! table-div text-div)
+      (append-child! other-div text-div)
       (if (not (external-null? dom))
         (for-each (lambda (link)
           (claim-link-dimensions link))

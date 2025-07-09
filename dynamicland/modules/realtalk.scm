@@ -8,6 +8,7 @@
   #:use-module (hoot gensym)
   #:export (Claim Wish When
             make-page-code
+            make-dynamic
             add-page
             get-page
             get-pages
@@ -120,6 +121,19 @@
 
 ; TEMPORARY: we want to associate a table with a datalog instance, and inject the relevant one
 ; for now we hardcode a single instance
+(define (make-dynamic)
+    (let* ((table-div (get-element-by-id "table"))
+           (table-rect (get-bounding-client-rect table-div))
+           (tw (get-width table-rect))
+           (th (get-height table-rect))
+           (svg (make-svg-element "svg"))
+           (other (make-element "other")))
+      (set-attribute! svg "xmlns" "http://www.w3.org/2000/svg")
+      (set-attribute! svg "width" (format #f "~a" tw))
+      (set-attribute! svg "height" (format #f "~a" th))
+      (append-child! table-div svg)
+      (append-child! table-div other)))
+
 (define dl (make-new-datalog))
 (define (get-dl) dl)
 
@@ -322,11 +336,15 @@
 ; then remove all derived facts and run fixpoint analysis again. This way we can encapsulate state in page code!
 ; NOTE: there are no derived facts!!! only followup claims/rules. we can query datalog to get all claims/rules asserted by a page as we run a closure over 'this' when creating rule lambda
 (define (recalculate-pages)
-  (set-inner-html! (get-element-by-id "table") "")
-  (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
-  ; todo: do we need to reset dl-idb ?
-  ; currently rules execute each time a page is moved, which is not what I'd expect
-  (dl-fixpoint! dl))
+  (let ((table-div (get-element-by-id "table")))
+    ; table has two child divs: <svg> and <other>
+    ; the latter can contain things like images, but svg is preferred for most projections
+    (set-inner-html! (query-selector table-div "svg") "")
+    (set-inner-html! (query-selector table-div "other") "")
+    (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
+    ; todo: do we need to reset dl-idb ?
+    ; currently rules execute each time a page is moved, which is not what I'd expect
+    (dl-fixpoint! dl)))
 
 (define (execute-page pid)
   ((hashtable-ref *procs* pid #f) pid))

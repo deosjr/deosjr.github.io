@@ -7,6 +7,9 @@
 
 (define pages (get-element-by-id "pages"))
 
+; todo: update whisker?
+(make-dynamic)
+
 (define-foreign window
     "window" "window"
     -> (ref null extern))

@@ -6,6 +6,7 @@
             make-text-node
             append-child!
             make-element
+            make-svg-element
             set-attribute!
             set-background!
             add-class!
@@ -54,6 +55,9 @@
     (ref null extern) (ref null extern) -> (ref null extern))
 (define-foreign make-element
     "document" "createElement"
+    (ref string) -> (ref null extern))
+(define-foreign make-svg-element
+    "document" "createSVGElement"
     (ref string) -> (ref null extern))
 (define-foreign set-attribute!
     "element" "setAttribute"

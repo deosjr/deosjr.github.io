@@ -49,6 +49,7 @@ window.addEventListener("load", async () => {
           getElementById: Document.prototype.getElementById.bind(document),
           createTextNode: Document.prototype.createTextNode.bind(document),
           createElement: Document.prototype.createElement.bind(document),
+          createSVGElement(name) { return document.createElementNS("http://www.w3.org/2000/svg", name)},
           parseDOM(html) { 
             const parser = new DOMParser();
             return parser.parseFromString(html, "text/html");

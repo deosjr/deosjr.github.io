@@ -3,6 +3,8 @@
 
 (define pages (get-element-by-id "pages"))
 
+(make-dynamic)
+
 ;(define *testvar* 0)
 
 (define page1 (add-page (make-page-code

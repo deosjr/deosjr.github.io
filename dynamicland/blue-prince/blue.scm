@@ -4,6 +4,8 @@
              (hoot ffi)
              (hoot hashtables))
 
+(make-dynamic)
+
 (define-foreign window
     "window" "window"
     -> (ref null extern))
@@ -153,6 +155,8 @@
 
   (define (claim-and-draw-button page cx cy w h color x y)
     (let* ((table-div (get-element-by-id "table"))
+           ; todo: draw with svg?
+           (other-div (query-selector table-div "other"))
            (div (make-element "div"))
            ;(select (make-element "div"))
            ;(diameter (* select-radius 2))
@@ -162,7 +166,7 @@
       (set-attribute! div "style" (format #f stylefmt x y w h (color->string color)))
       ;(set-attribute! select "style" (format #f selectfmt diameter diameter))
       ;(append-child! div select)
-      (append-child! table-div div)
+      (append-child! other-div div)
       (claim-button page div mid cx cy color)
   ))
 
