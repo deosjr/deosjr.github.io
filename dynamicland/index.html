@@ -25,7 +25,7 @@
 	So with apologies to Bret, let's have a look at RealTalk as I've reverse engineered it and explore some of its concepts.</p>
     <p>Here are two pages. Their associated code is shown below.</p>
     <h3>Page 1:</h3>
-    <div class=code>(Claim this 'highlighted "red")</div>
+    <div class=code>(Claim this 'highlighted "yellow")</div>
     <h3>Page 2:</h3>
     <div class=code>
   (When ((highlighted ,?p ,?color)
@@ -35,7 +35,7 @@
                (< 100 (- ?thatleft ?thisleft)))
         (set-background! (get-page ?p) ?color))))))
     </div>
-    <p>Meaning, page 1 asserts a claim: it should be highlighted red!
+    <p>Meaning, page 1 asserts a claim: it should be highlighted yellow!
        Page 2 introduces a rule: if a page claims to be a certain color, then set its background to that color, but only if that page is more than 100px to the right of page 2.
        Pages only exist if they are contained within the bounds of the table, and can only assert claims/rules for as long as they exist.</p>
     <div id=pages class="pages"></div>
@@ -44,7 +44,7 @@
     <p>Instead of paper pages, this page uses HTML divs.
        I will use them to illustrate some of RealTalk's behaviour as we build it up.
        Each page is associated with some code that is active when the page is contained within the table div.
-       Follow the links below to learn how all of this works: I promise it is more interesting than 'if both pages are on the table, color one of them red'.</p>
+       Follow the links below to learn how all of this works: I promise it is more interesting than 'if both pages are on the table, color one of them yellow'.</p>
     <p>Page 3 is a bonus page: try rotating it by bringing it in focus (click) and pressing 'q' or 'e'.</p>
     <nav>
     <h2>Table of Contents</h2>

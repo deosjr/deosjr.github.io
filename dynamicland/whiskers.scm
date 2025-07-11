@@ -4,9 +4,6 @@
              (hoot ffi)
              (hoot hashtables))
 
-(define-foreign window
-    "window" "window"
-    -> (ref null extern))
 (define-foreign computed-style
     "window" "getComputedStyle"
     (ref null extern) -> (ref null extern))
@@ -16,9 +13,6 @@
 (define-foreign set-property!
     "element" "setProperty"
     (ref null extern) (ref string) (ref string) -> none)
-(define-foreign console-log
-    "console" "log"
-    (ref string) -> none)
 
 (add-event-listener! (window) "update-realtalk" (procedure->external (lambda (e)
   (recalculate-pages))))

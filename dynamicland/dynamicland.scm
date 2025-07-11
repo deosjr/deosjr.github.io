@@ -12,7 +12,7 @@
   ;(set! *testvar* (+ 1 *testvar*))
   ;(append-child! (get-page this) (make-text-node (format #f "~a" *testvar*)))
   ; the right way would be to declare *testvar* in this scope, but that currently _doesnt_ work
-  (Claim this 'highlighted "red"))))
+  (Claim this 'highlighted "yellow"))))
 
 (define page2 (add-page (make-page-code
   ; confusing: conditions need logic vars to be unquoted, code does _not_

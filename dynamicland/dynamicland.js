@@ -3,6 +3,12 @@ window.addEventListener("load", async () => {
     await Scheme.load_main("dynamicland.wasm", {
       reflect_wasm_dir: ".",
       user_imports: {
+        window: {
+          window() { return window; }
+        },
+        console: {
+          log(str) { console.log(str); }
+        },
         document: {
           body() { return document.body; },
           getElementById: Document.prototype.getElementById.bind(document),

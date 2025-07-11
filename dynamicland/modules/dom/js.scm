@@ -1,6 +1,8 @@
 (define-module (dom js)
   #:use-module (hoot ffi)
-  #:export (document-body
+  #:export (window
+            console-log
+            document-body
             remove-element
             get-element-by-id
             make-text-node
@@ -38,6 +40,12 @@
             query-selector
             get-key))
 
+(define-foreign window
+    "window" "window"
+    -> (ref null extern))
+(define-foreign console-log
+    "console" "log"
+    (ref string) -> none)
 (define-foreign document-body
     "document" "body"
     -> (ref null extern))

@@ -6,12 +6,6 @@
 
 (make-dynamic)
 
-(define-foreign window
-    "window" "window"
-    -> (ref null extern))
-(define-foreign console-log
-    "console" "log"
-    (ref string) -> none)
 (define-foreign get-property
     "element" "getProperty"
     (ref null extern) (ref string) -> (ref null extern))

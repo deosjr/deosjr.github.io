@@ -128,11 +128,19 @@
            (th (get-height table-rect))
            (svg (make-svg-element "svg"))
            (other (make-element "other")))
+      (add-event-listener! (window) "keydown" (procedure->external (lambda (e)
+        (let* ((keystr (get-key e))
+               (key (string-ref keystr 0)))
+          ; ignore modifier keys for now
+          (if (= (string-length keystr) 1) (set! last-key key))))))
       (set-attribute! svg "xmlns" "http://www.w3.org/2000/svg")
       (set-attribute! svg "width" (format #f "~a" tw))
       (set-attribute! svg "height" (format #f "~a" th))
       (append-child! table-div svg)
       (append-child! table-div other)))
+
+; only support a single keyboard for now, since we are in the browser anyways
+(define last-key #f)
 
 (define dl (make-new-datalog))
 (define (get-dl) dl)
@@ -342,9 +350,17 @@
     (set-inner-html! (query-selector table-div "svg") "")
     (set-inner-html! (query-selector table-div "other") "")
     (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
+    (assert-last-key)
     ; todo: do we need to reset dl-idb ?
     ; currently rules execute each time a page is moved, which is not what I'd expect
     (dl-fixpoint! dl)))
+
+; each loop, we assert the last key. this will only work if at most one key is pressed every 100ms (current refresh rate)
+(define (assert-last-key)
+  (let (( claims (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (keyboard pressed ,x) )))))))
+    (for-each (lambda (claim) (dl-retract! dl `(keyboard pressed ,claim))) claims)
+    (if last-key (dl-assert! dl 'keyboard 'pressed last-key))
+    (set! last-key #f)))
 
 (define (execute-page pid)
   ((hashtable-ref *procs* pid #f) pid))

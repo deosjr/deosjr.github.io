@@ -1,6 +1,11 @@
+setInterval(() => {
+    const event = new Event("update-realtalk");
+    window.dispatchEvent(event);
+}, 100)
+
 window.addEventListener("load", async () => {
   try {
-    await Scheme.load_main("datalog.wasm", {
+    await Scheme.load_main("keyboard.wasm", {
       reflect_wasm_dir: ".",
       user_imports: {
         window: {

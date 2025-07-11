@@ -10,10 +10,6 @@
 ; todo: update whisker?
 (make-dynamic)
 
-(define-foreign window
-    "window" "window"
-    -> (ref null extern))
-
 (add-event-listener! (window) "update-realtalk" (procedure->external (lambda (e)
   (recalculate-pages))))
 

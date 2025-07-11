@@ -18,6 +18,10 @@ wiki: wiki.scm
 	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
 	../../hoot/pre-inst-env guild compile-wasm -L modules -o wiki.wasm wiki.scm
 
+keyboard: keyboard.scm
+	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
+	../../hoot/pre-inst-env guild compile-wasm -L modules -o keyboard.wasm keyboard.scm
+
 blue: blue-prince/blue.scm
 	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
 	../../hoot/pre-inst-env guild compile-wasm -L modules -o blue-prince/blue.wasm blue-prince/blue.scm
@@ -25,4 +29,4 @@ blue: blue-prince/blue.scm
 serve:
 	@python3 -m http.server
 
-run: dynamicland datalog whiskers variables wiki blue serve
+run: dynamicland datalog whiskers variables wiki keyboard blue serve
