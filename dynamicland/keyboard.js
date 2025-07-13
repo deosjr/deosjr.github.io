@@ -9,7 +9,8 @@ window.addEventListener("load", async () => {
       reflect_wasm_dir: ".",
       user_imports: {
         window: {
-          window() { return window; }
+          window() { return window; },
+          getComputedStyle(elem) { return window.getComputedStyle(elem); }
         },
         console: {
           log(str) { console.log(str); }
@@ -23,6 +24,8 @@ window.addEventListener("load", async () => {
         },
         element: {
           removeElement(elem) { elem.remove(); },
+          getProperty(elem, key) { return elem[key]; },
+          setProperty(elem, key, value) { elem[key] = value; },
           setAttribute(elem, name, value) { elem.setAttribute(name, value); },
           setStyle(elem, value) { elem.style = value },
           setBackground(elem, value) { elem.style.background = value },

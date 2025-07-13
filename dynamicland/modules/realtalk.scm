@@ -12,6 +12,7 @@
             add-page
             get-page
             get-pages
+            add-keyboard
             get-dl
             recalculate-pages))
 
@@ -132,15 +133,16 @@
         (let* ((keystr (get-key e))
                (key (string-ref keystr 0)))
           ; ignore modifier keys for now
-          (if (= (string-length keystr) 1) (set! last-key key))))))
+          (if (= (string-length keystr) 1)
+            (begin
+              (set! last-key key)
+              (set! just-pressed #t)
+      ))))))
       (set-attribute! svg "xmlns" "http://www.w3.org/2000/svg")
       (set-attribute! svg "width" (format #f "~a" tw))
       (set-attribute! svg "height" (format #f "~a" th))
       (append-child! table-div svg)
       (append-child! table-div other)))
-
-; only support a single keyboard for now, since we are in the browser anyways
-(define last-key #f)
 
 (define dl (make-new-datalog))
 (define (get-dl) dl)
@@ -190,6 +192,34 @@
     (set-style-transform! div "rotate(0deg)")
     (make-div-draggable div id)
     (make-div-focusable div id) div))
+
+; only support a single keyboard for now, since we are in the browser anyways
+(define last-key #f)
+(define just-pressed #f)
+
+(define (keyboard-proc this)
+  (Claim this 'keyboard #t)
+  (Wish this 'has-whiskers #t)
+
+  (define (claim-key-pressed)
+    (if just-pressed (begin
+      (set! just-pressed #f)
+      (hashtable-set! (datalog-idb dl) `(,this claims (,this key-pressed ,last-key)) #t)
+      (hashtable-set! (datalog-idb dl) `(,this key-pressed ,last-key) #t)
+      (Claim this 'key-pressed last-key)
+  )))
+
+  (When ((keyboard ,this #t)) do
+    (claim-key-pressed))
+)
+
+(define (add-keyboard)
+  (let* ((pid (dl-record! dl 'page ('code keyboard-proc)))
+         (div (make-page-div pid)))
+    (set! *pages* (cons pid *pages*))
+    (hashtable-set! *procs* pid keyboard-proc)
+    (hashtable-set! *divs* pid div)
+    pid))
 
 (define (get-pages) *pages*)
 
@@ -350,17 +380,9 @@
     (set-inner-html! (query-selector table-div "svg") "")
     (set-inner-html! (query-selector table-div "other") "")
     (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
-    (assert-last-key)
     ; todo: do we need to reset dl-idb ?
     ; currently rules execute each time a page is moved, which is not what I'd expect
     (dl-fixpoint! dl)))
-
-; each loop, we assert the last key. this will only work if at most one key is pressed every 100ms (current refresh rate)
-(define (assert-last-key)
-  (let (( claims (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (keyboard pressed ,x) )))))))
-    (for-each (lambda (claim) (dl-retract! dl `(keyboard pressed ,claim))) claims)
-    (if last-key (dl-assert! dl 'keyboard 'pressed last-key))
-    (set! last-key #f)))
 
 (define (execute-page pid)
   ((hashtable-ref *procs* pid #f) pid))
