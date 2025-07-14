@@ -19,7 +19,8 @@
        But what if we want pages to remember previous state?</p>
     <div id=pages class="pages"></div>
     <div id=table class="table" style="height:60vh; width:60vh;"></div>
-    <p>Here we have two pages plus a pointer page. Page #3 includes all of the logic we saw in <a href="/dynamicland/whiskers.html">whiskers</a>.
+    <p>Here we have two pages plus a pointer page (#4 is bonus).
+       Page #3 includes all of the logic we saw in <a href="/dynamicland/whiskers.html">whiskers</a>.
        Page #1 and #2 showcase how to declare variables in the scope of a page.
        Both will cycle through four different colors, changing color whenever pointed at.
        The difference between the two is that page #2 maintains that color as long as the pointer still points at it.</p>
@@ -105,6 +106,8 @@
     <p>Here we make sure to add some facts to datalog-idb, the table of derived facts, whenever we make a derived Claim.
        Each iteration of fixpoint analysis starts with cleaning up all derived facts, so these Claims get removed.
        Problem solved!</p>
+    <p>Page #4 is a bonus page. It uses an external variable: time.
+       Time is asserted into the database each iteration and is available in milliseconds.</p>
     <p><a href="/dynamicland">Home</a></p>
     </main>
   </body>

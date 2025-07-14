@@ -5,7 +5,7 @@ setInterval(() => {
 
 window.addEventListener("load", async () => {
   try {
-    await Scheme.load_main("variables.wasm", {
+    await Scheme.load_main("time.wasm", {
       reflect_wasm_dir: ".",
       user_imports: {
         window: {

@@ -4,8 +4,8 @@
   #:use-module (minikanren)
   #:use-module (datalog)
   #:use-module (hoot ffi)
-  #:use-module (hoot hashtables)
   #:use-module (hoot gensym)
+  #:use-module (hoot hashtables)
   #:export (Claim Wish When
             make-page-code
             make-dynamic
@@ -380,9 +380,15 @@
     (set-inner-html! (query-selector table-div "svg") "")
     (set-inner-html! (query-selector table-div "other") "")
     (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
+    (assert-time)
     ; todo: do we need to reset dl-idb ?
     ; currently rules execute each time a page is moved, which is not what I'd expect
     (dl-fixpoint! dl)))
+
+(define (assert-time)
+  (let (( claims (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (now time ,x) )))))))
+    (for-each (lambda (claim) (dl-retract! dl `(now time ,claim))) claims)
+    (dl-assert! dl 'now 'time (date-now))))
 
 (define (execute-page pid)
   ((hashtable-ref *procs* pid #f) pid))

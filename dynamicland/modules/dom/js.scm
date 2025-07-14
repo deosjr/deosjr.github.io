@@ -37,6 +37,7 @@
             prevent-default
             first-touch
             focus
+            date-now
             query-selector
             get-key))
 
@@ -157,3 +158,6 @@
 (define-foreign get-key
   "event" "getKey"
   (ref null extern) -> (ref string))
+(define-foreign date-now
+  "date" "now"
+  -> i32)

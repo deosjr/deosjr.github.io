@@ -22,6 +22,10 @@ keyboard: keyboard.scm
 	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
 	../../hoot/pre-inst-env guild compile-wasm -L modules -o keyboard.wasm keyboard.scm
 
+time: time.scm
+	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
+	../../hoot/pre-inst-env guild compile-wasm -L modules -o time.wasm time.scm
+
 blue: blue-prince/blue.scm
 	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
 	../../hoot/pre-inst-env guild compile-wasm -L modules -o blue-prince/blue.wasm blue-prince/blue.scm
