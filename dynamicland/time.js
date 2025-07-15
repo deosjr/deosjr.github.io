@@ -59,6 +59,24 @@ window.addEventListener("load", async () => {
           mouseY(e) { return e.clientY },
           firstTouch(e) { return e.changedTouches[0] },
           getKey(e) { return e.key }
+        },
+        array: {
+          make(len) { return new Array(len); },
+          set(arr, i, v) { arr[i] = v; }
+        },
+        d3: {
+          // points is an array of arrays: [ [x, y], ... ]
+          catmullRom(points) {
+            const svg = d3.select("#table").select("svg");
+            const line = d3.line().curve(d3.curveCatmullRom)
+              .x(d => d[0])
+              .y(d => d[1]);
+            return svg.append("path")
+              .attr("d", line(points))
+              .attr("style", "stroke: steelblue; fill: none; stroke-width: 2;")
+              .attr("class", "line")
+              .node();
+          }
         }
       }});
   } catch(e) {

@@ -10,9 +10,6 @@
 
 (make-dynamic)
 
-(define-foreign window
-    "window" "window"
-    -> (ref null extern))
 (define-foreign wiki-html
     "wiki" "html"
     (ref string) -> (ref string))
@@ -34,9 +31,6 @@
 (define-foreign array-ref
     "array" "ref"
     (ref null extern) i32 -> (ref null extern))
-(define-foreign console-log
-    "console" "log"
-    (ref string) -> none)
 
 (define (arr->list arr) 
   (let loop ((i 0) (len (array-length arr)) (acc '()))
