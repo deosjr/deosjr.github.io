@@ -22,6 +22,9 @@ window.addEventListener("load", async () => {
         console: {
           log(str) { console.log(str); }
         },
+        date: {
+          now() { return Date.now(); }
+        },
         element: {
           removeElement(elem) { elem.remove(); },
           getProperty(elem, key) { return elem[key]; },

@@ -22,6 +22,8 @@
 
 ; known bugs:
 ; - not fully matching/unpacking a complex list in When condition leads to arbitrary multiple executions?
+; -> structurally identical lists can still hash differently...
+; -> due to recursion budget in hash function
 ; - derived Claim/Wish is not supported in When macro, 'this' keyword not available
 ; --> see below, inject 'this' explicitly in embedded Claim/Wish. Disallow nested When rules
 ; - derived Claim/Wish is not supported in When macro, behaviour should be different
@@ -122,6 +124,7 @@
 
 ; TEMPORARY: we want to associate a table with a datalog instance, and inject the relevant one
 ; for now we hardcode a single instance
+; todo: make-dynamic takes arguments for background pages
 (define (make-dynamic)
     (let* ((table-div (get-element-by-id "table"))
            (table-rect (get-bounding-client-rect table-div))

@@ -38,13 +38,14 @@
            (d (inexact->exact (* step (floor (/ tmod interval)))))) d))
 
   (define dx 20)
+  (define maxlen 20)
+  (define data '())
 
-  (define data (make-list 20 200))
   (define (points)
-    (let loop ((i 0) (lst data) (acc '()))
+    (let loop ((i (- maxlen 1)) (lst data) (acc '()))
       (if (null? lst)
         (reverse acc)
-        (loop (+ i 1) (cdr lst) (cons (cons (* i dx) (car lst)) acc)))))
+        (loop (- i 1) (cdr lst) (cons (cons (* i dx) (car lst)) acc)))))
 
   (define (js-point p)
     (let ((arr (make-array 2))
@@ -62,8 +63,9 @@
             (loop (+ i 1) (cdr lst)))))))
 
   (define (add-data-point x)
-    ;(set! data (cons x (reverse (cdr (reverse data))))))
-    (set! data (reverse (cons x (reverse (cdr data))))))
+    (if (< (length data) maxlen)
+      (set! data (cons x data))
+      (set! data (cons x (reverse (cdr (reverse data)))))))
 
   (When ((time now ,?t)) do
     (if (< interval (- ?t t)) (begin
@@ -91,13 +93,14 @@
            (d (inexact->exact (* step (floor (/ tmod interval)))))) d))
 
   (define dx 20)
+  (define maxlen 20)
+  (define data '())
 
-  (define data (make-list 20 200))
   (define (points)
-    (let loop ((i 0) (lst data) (acc '()))
+    (let loop ((i (- maxlen 1)) (lst data) (acc '()))
       (if (null? lst)
         (reverse acc)
-        (loop (+ i 1) (cdr lst) (cons (cons (* i dx) (car lst)) acc)))))
+        (loop (- i 1) (cdr lst) (cons (cons (* i dx) (car lst)) acc)))))
 
   (define (js-point p)
     (let ((arr (make-array 2))
@@ -115,8 +118,9 @@
             (loop (+ i 1) (cdr lst)))))))
 
   (define (add-data-point x)
-    ;(set! data (cons x (reverse (cdr (reverse data))))))
-    (set! data (reverse (cons x (reverse (cdr data))))))
+    (if (< (length data) maxlen)
+      (set! data (cons x data))
+      (set! data (cons x (reverse (cdr (reverse data)))))))
 
   (When ((time now ,?t)) do
     (if (< interval (- ?t t)) (begin
