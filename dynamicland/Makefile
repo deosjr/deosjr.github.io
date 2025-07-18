@@ -30,7 +30,11 @@ blue: blue-prince/blue.scm
 	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
 	../../hoot/pre-inst-env guild compile-wasm -L modules -o blue-prince/blue.wasm blue-prince/blue.scm
 
+energy: grid/grid.scm
+	# deosjr.github.io is checked out next to a bootstrapped Hoot folder
+	../../hoot/pre-inst-env guild compile-wasm -L modules -o grid/grid.wasm grid/grid.scm
+
 serve:
 	@python3 -m http.server
 
-run: dynamicland datalog whiskers variables wiki keyboard blue serve
+run: dynamicland datalog whiskers variables wiki keyboard blue energy serve
