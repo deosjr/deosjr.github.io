@@ -71,76 +71,151 @@
            #'(dl-rule (code this (lambda (this) (begin statement ...))) :- (wishes someone w) ))))))
 |#
 
-; the 'when' macro is like dl-rule, we can't use dl-rule directly because we need to have the (lambda (this) ..) part unescaped
+; ----------------------------------------------------------------------
+; (When (cond ...) do body ...)
+;
+; A rule with side effects. We compile each use site to two cooperating
+; pieces wired together by a unique symbol:
+;
+;   1. A `rule` value: a minikanren goal that unifies the result `q` with a
+;      tuple `(this 'code (code-name . args))`. When dl-fixpoint-iterate
+;      runs the rules, satisfying the conditions produces one such tuple
+;      per match, with `args` bound to the logic-var values.
+;
+;   2. A `code` procedure: the rule's body wrapped as
+;      (lambda (this ?var1 ?var2 ...) body...). Stored in *rule-procs*
+;      under code-name. After dl-fixpoint-iterate accumulates new facts it
+;      walks them, looks each proc up by code-name, and applies it to the
+;      bound args. That's where the body's side effects run.
+;
+; So the When macro never executes the body directly — it just packages
+; the body for later application during fixpoint iteration.
+;
+; A few subtleties:
+;
+; * Logic variables (`?x`, `?p`, ...) are not legal Scheme identifiers, so
+;   we can't use syntax-case patterns to bind them. We work on the datum
+;   tree (via syntax->datum), substitute each ?var with a fresh gensym,
+;   then datum->syntax everything back. The gensym replacement gives us
+;   per-rule hygiene: two When forms that both use ?x get distinct
+;   identifiers, no accidental capture.
+;
+; * Re-anchoring free identifiers: when we datum->syntax a symbol like a
+;   user-defined helper procedure, we pass `stx` (the macro input) as the
+;   context so the symbol resolves at the *user's* source location, not
+;   in this realtalk module. Without that, calls to user helpers from
+;   inside the body wouldn't resolve.
+;
+; * `this` is anchored once via with-syntax so the rule-lambda's `this`
+;   parameter, the body's `this` references, and the (Claim/Wish ...) ->
+;   (derived-claim!/wish! this ...) rewrites all refer to the same
+;   identifier — and so the lambda binding captures every body reference.
+;
+; The xform pass below does all of this in one walk:
+;   ?var          -> its assigned gensym
+;   (Claim ...)   -> (derived-claim! this ...)   ; live for one fixpoint
+;   (Wish  ...)   -> (derived-wish!  this ...)   ; same
+;   (When  ...)   -> compile-time error (lifecycle of nested rules unclear)
+;   other symbol  -> re-anchored to user's stx
+;   pair          -> recurse on car and cdr
+; ----------------------------------------------------------------------
 (define-syntax When
   (lambda (stx)
-    (define (symbol-with-question-mark? s)
-      (and (symbol? s)
-           (let ((str (symbol->string s)))
-             (and (positive? (string-length str))
-                  (char=? (string-ref str 0) #\?)))))
+    ; A logic variable: any symbol whose first char is #\?, e.g. ?p, ?color.
+    (define (logic-var? x)
+      (and (symbol? x)
+           (let ((s (symbol->string x)))
+             (and (positive? (string-length s))
+                  (char=? (string-ref s 0) #\?)))))
 
-  (define (collect-vars datum)
-        (cond
-          [(symbol? datum)
-           (if (symbol-with-question-mark? datum) (list datum) '())]
-          [(pair? datum)
-             (append (collect-vars (car datum))
-                     (collect-vars (cdr datum)))]
-          [else '()]))
+    ; All distinct logic variables in DATUM, in first-seen order. The order
+    ; matters: it fixes the parameter order of both the body-procedure and
+    ; the rule's lambda, so the args produced by minikanren match up.
+    (define (collect-logic-vars datum)
+      (let walk ((d datum) (seen '()))
+        (cond ((logic-var? d) (if (member d seen) seen (cons d seen)))
+              ((pair? d) (walk (cdr d) (walk (car d) seen)))
+              (else seen))))
 
-  (define (remove-duplicates syms)
-      (define seen '())
-      (define (unique s)
-        (let ((d (syntax->datum s)))
-          (if (member d seen) #f
-              (begin (set! seen (cons d seen)) #t))))
-      (filter unique syms))
+    ; Transform DATUM for splicing back into the emitted code:
+    ;   - SYM->GEN maps each ?var to its chosen gensym (a syntax object).
+    ;   - All other symbols become syntax objects anchored to stx (the
+    ;     macro input), so they resolve at the user's source location.
+    (define (xform datum sym->gen)
+      (define (recur d) (xform d sym->gen))
+      (define (here sym) (datum->syntax stx sym))
+      (cond
+        ; ?var: substitute its gensym if we know one; otherwise it must be
+        ; a free ?var (none introduced in the conditions). Anchor it as a
+        ; bare symbol; if it survives to runtime it'll be an unbound error.
+        ((logic-var? datum)
+         (cond ((assq datum sym->gen) => cdr)
+               (else (here datum))))
+        ; Atom (non-pair): just re-anchor.
+        ((not (pair? datum)) (here datum))
+        ; (Claim id attr v) inside this body becomes a *derived* claim that
+        ; lives in the IDB for one fixpoint iteration. We inject `this`
+        ; explicitly so the form doesn't depend on the Claim macro's own
+        ; hygiene to find it.
+        ((eq? (car datum) 'Claim)
+         (cons (here 'derived-claim!) (cons (here 'this) (map recur (cdr datum)))))
+        ; (Wish id attr v) — same treatment as Claim.
+        ((eq? (car datum) 'Wish)
+         (cons (here 'derived-wish!) (cons (here 'this) (map recur (cdr datum)))))
+        ; (When ...) nested inside a When body is rejected at expand time:
+        ; the lifecycle of "a rule that produces rules" is not designed.
+        ((eq? (car datum) 'When)
+         (syntax-violation 'When "nested When is not supported" stx))
+        ; Ordinary form: recurse on car and cdr.
+        (else (cons (recur (car datum)) (recur (cdr datum))))))
 
-  ; Rewrite Claim/Wish forms inside the rule body to derived-claim!/derived-wish!,
-  ; threading the rule's `this` in explicitly so they don't depend on macro
-  ; hygiene to find it. Nested When is disallowed.
-  (define (rewrite-body datum)
-    (cond
-      [(and (pair? datum) (eq? (car datum) 'Claim))
-       (cons 'derived-claim! (cons 'this (map rewrite-body (cdr datum))))]
-      [(and (pair? datum) (eq? (car datum) 'Wish))
-       (cons 'derived-wish! (cons 'this (map rewrite-body (cdr datum))))]
-      [(and (pair? datum) (eq? (car datum) 'When))
-       (syntax-violation 'When "nested When is not supported" stx)]
-      [(pair? datum)
-       (cons (rewrite-body (car datum)) (rewrite-body (cdr datum)))]
-      [else datum]))
-
-  (define (replace-symbols datum sym->gen)
-    (cond
-      [(symbol? datum)
-       (let ((mapped (assoc datum sym->gen)))
-         (if mapped (cdr mapped) (datum->syntax stx datum)))]
-      [(pair? datum)
-       (cons (replace-symbols (car datum) sym->gen)
-             (replace-symbols (cdr datum) sym->gen))]
-      [else (datum->syntax stx datum)]))
-
-  (syntax-case stx (do)
-    ((_ ((condition cx cy) ...) do statement ...)
+    (syntax-case stx (do)
+      ((_ ((condition cx cy) ...) do statement ...)
+       ; Bind `this` once as a pattern variable anchored to the user's stx,
+       ; so every reference to `this` below (template lambda parameter,
+       ; (dl-assert! ... this ...) call, and xform-injected `this`s) all
+       ; expand to the same identifier.
        (with-syntax ((this (datum->syntax stx 'this)))
-         (let* ((datums (syntax->datum #'((cx condition cy) ...)))
-            (vars (remove-duplicates (collect-vars datums)))
-            (numvars (+ 1 (length vars)))
-            (gens (generate-temporaries vars))
-            (sym->gen (map cons vars gens))
-            (st-datums (rewrite-body (syntax->datum #'(statement ...))))
-            (replaced-statements (replace-symbols st-datums sym->gen))
-            (replaced-conditions (replace-symbols datums sym->gen)))
-       #`(let* ((code `,(lambda (this #,@gens) (begin #,@replaced-statements)))
-                (code-name (gensym))
-                (rule (fresh-vars #,numvars (lambda (q #,@gens)
-                          (conj (equalo q (list this 'code (cons code-name (list #,@gens))))
-                                (dl-findo (get-dl) #,replaced-conditions))))))
-             (hashtable-set! *rule-procs* code-name code)
-             (dl-assert! (get-dl) this 'rules rule)
-             (dl-assert-rule! (get-dl) rule))))))))
+         (let* ((conds (syntax->datum #'((cx condition cy) ...)))
+                (body  (syntax->datum #'(statement ...)))
+                ; Walk conds *and* body together so a ?var used only in
+                ; the body (e.g. shadowing a condition var) still gets a
+                ; gensym slot; the rule-lambda passes it through unbound,
+                ; minikanren handles it.
+                (vars  (collect-logic-vars (cons conds body)))
+                (gens  (generate-temporaries vars))
+                (sym->gen (map cons vars gens))
+                (conds* (xform conds sym->gen))
+                (body*  (xform body  sym->gen)))
+           ; Emitted shape:
+           ;   (let* ((code      (lambda (this g1 g2 ...) body*))
+           ;          (code-name (gensym))
+           ;          (rule      (fresh-vars N
+           ;                       (lambda (q g1 g2 ...)
+           ;                         (conj
+           ;                           ; unify q with the result tuple the
+           ;                           ; engine looks up code-name in
+           ;                           (equalo q (list this 'code
+           ;                                           (cons code-name
+           ;                                                 (list g1 g2 ...))))
+           ;                           ; the user-written conditions
+           ;                           (dl-findo (get-dl) conds*))))))
+           ;     (hashtable-set! *rule-procs* code-name code)  ; register
+           ;     (dl-assert! (get-dl) this 'rules rule)        ; for retraction
+           ;     (dl-assert-rule! (get-dl) rule))              ; make it active
+           ;
+           ; N is (1 + length vars): the rule procedure takes `q` (its
+           ; output unification slot) plus one gensym per logic var.
+           #`(let* ((code (lambda (this #,@gens) #,@body*))
+                    (code-name (gensym))
+                    (rule (fresh-vars #,(+ 1 (length vars))
+                            (lambda (q #,@gens)
+                              (conj (equalo q (list this 'code
+                                                    (cons code-name (list #,@gens))))
+                                    (dl-findo (get-dl) #,conds*))))))
+               (hashtable-set! *rule-procs* code-name code)
+               (dl-assert! (get-dl) this 'rules rule)
+               (dl-assert-rule! (get-dl) rule))))))))
 
 (define-syntax make-page-code
   (lambda (stx)
