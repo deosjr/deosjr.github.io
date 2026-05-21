@@ -97,21 +97,13 @@
   (Claim this 'mora-jai solution)
 
   ; claim solved state?
-  (define (claim-state)
+  ; i.e. forever, but conditional claims since our state will change
+  (When ((mora-jai ,this ,?sol)) do
     ; we know this runs each iteration at the start
     (set! pointed-at-prev pointed-at)
     (set! pointed-at #f)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this was-pointed-at ,pointed-at-prev)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this was-pointed-at ,pointed-at-prev) #t)
     (Claim this 'was-pointed-at pointed-at-prev)
-    (let ((state (state-list)))
-      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-state ,state)) #t)
-      (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
-      (Claim this 'mora-jai-state state)))
-
-  ; i.e. forever, but conditional claims since our state will change
-  (When ((mora-jai ,this ,?sol)) do
-    (claim-state))
+    (Claim this 'mora-jai-state (state-list)))
 
   (When ((points-at ,?p ,?button)
          (button ,?button (,this ,?x ,?y ,?color)))
@@ -129,41 +121,17 @@
   (define select-radius 10)
   (define button-padding 5)
 
-  (define (claim-button page div midpoint x y color)
-    (let ((args `(,page ,x ,y ,color)))
-      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,div button ,args)) #t)
-      (hashtable-set! (datalog-idb (get-dl)) `(,div button ,args) #t)
-      (Claim div 'button args))
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,div button-div ,midpoint)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,div button-div ,midpoint) #t)
-    (Claim div 'button-div midpoint))
-
   (define (color->string c)
     (if (eq? c 'violet) "purple" (symbol->string c)))
-
-  ; todo: define a stylesheet with a class and add to DOM? what would be cleaner?
-  (define (claim-and-draw-button page cx cy w h color x y)
-    (let* ((table-div (get-element-by-id "table"))
-           (svg (query-selector table-div "svg"))
-           (rect (make-svg-element "rect"))
-           (mx (+ x (/ w 2)))
-           (my (+ y (/ h 2)))
-           (mid (cons mx my)))
-      (set-attribute! rect "width" (number->string w))
-      (set-attribute! rect "height" (number->string h))
-      (set-attribute! rect "x" (number->string x))
-      (set-attribute! rect "y" (number->string y))
-      (set-attribute! rect "fill" (color->string color))
-      (set-attribute! rect "style" "opacity:0.7;border-style:solid;")
-      (append-child! svg rect)
-      (claim-button page rect mid cx cy color)
-  ))
 
   ; bug: not unpacking state leads to weird amounts of this rule executing
   ; perhaps depending on how many ways minikanren is able to reach this goal?
   ;(When ((mora-jai-state ,?p ,?state)) do
 
   ; todo: draw solution as a border around the box?
+  ; claim-and-draw-button is lexically inside this When body so its Claim
+  ; calls get rewritten to derived-claim! and the button facts live only for
+  ; this fixpoint iteration (re-derived next tick from mora-jai-state).
   (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
                               (,?b1 ,?b2 ,?b3)
                               (,?c1 ,?c2 ,?c3)))
@@ -171,7 +139,23 @@
          ((page top) ,?p ,?y)
          ((page width) ,?p ,?w)
          ((page height) ,?p ,?h))
-   do (let* ((w (- ?w button-padding))
+   do (define (claim-and-draw-button page cx cy w h color x y)
+        (let* ((table-div (get-element-by-id "table"))
+               (svg (query-selector table-div "svg"))
+               (rect (make-svg-element "rect"))
+               (mx (+ x (/ w 2)))
+               (my (+ y (/ h 2)))
+               (mid (cons mx my)))
+          (set-attribute! rect "width" (number->string w))
+          (set-attribute! rect "height" (number->string h))
+          (set-attribute! rect "x" (number->string x))
+          (set-attribute! rect "y" (number->string y))
+          (set-attribute! rect "fill" (color->string color))
+          (set-attribute! rect "style" "opacity:0.7;border-style:solid;")
+          (append-child! svg rect)
+          (Claim rect 'button `(,page ,cx ,cy ,color))
+          (Claim rect 'button-div mid)))
+      (let* ((w (- ?w button-padding))
              (h (- ?h button-padding))
              (minx (- ?x w button-padding button-padding))
              (maxx (+ ?x w button-padding button-padding))
@@ -193,14 +177,9 @@
            (dy (- py qy)))
       (sqrt (+ (* dx dx) (* dy dy)))))
 
-  (define (claim-point-at p q)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p points-at ,q)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
-    (Claim p 'points-at q))
-
   (When ((pointer-at ,?p (,?px . ,?py))
          (button-div ,?div (,?mx . ,?my))) do
-    (if (< (euclidian ?px ?py ?mx ?my) select-radius) (claim-point-at ?p ?div)))
+    (if (< (euclidian ?px ?py ?mx ?my) select-radius) (Claim ?p 'points-at ?div)))
 
   ; update the button color immediately
   ; note that get-property is defined to return an external ref to make this work
@@ -208,20 +187,15 @@
          (button ,?button (,?p ,?x ,?y ,?old)))
    do (set-property! (get-property ?button "style") "background" (color->string ?color)))
 
-  ; todo: wish for p to be solved, and let p update its status + assert it each cycle?
-  (define (claim-solved p)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p is-solved #t)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p is-solved #t) #t)
-    (Claim p 'is-solved #t))
-
   ; note: solution is only found next iteration
   ; todo: if solution 'locks' the puzzle, is there still a race in evaluation?
   ; i.e. can an update trigger in between, locking the puzzle in an invalid state?
+  ; todo: wish for p to be solved, and let p update its status + assert it each cycle?
   (When ((mora-jai ,?p ,?sn)
          (mora-jai-state ,?p ((,?sn ,?a2 ,?sn)
                               (,?b1 ,?b2 ,?b3)
                               (,?sn ,?c2 ,?sn))))
-   do (claim-solved ?p))
+   do (Claim ?p 'is-solved #t))
 
   (When ((is-solved ,?p #t))
    do (set-background! (get-page this) "gold"))
@@ -231,23 +205,11 @@
 (define whiskers (add-page (make-page-code
   (Wish this 'has-whiskers #t)
 
-  (define (claim-has-whiskers p)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p has-whiskers #t)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p has-whiskers #t) #t)
-    (Claim p 'has-whiskers #t))
+
   (When ((wishes ,?p (,?p has-whiskers ,#t))) do
-    (claim-has-whiskers ?p))
+    (Claim ?p 'has-whiskers #t))
   (When ((has-whiskers ,?p #t)) do
     (add-class! (get-page ?p) "whisker"))
-
-  (define (claim-pointer-at p point)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p pointer-at ,point)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p pointer-at ,point) #t)
-    (Claim p 'pointer-at point))
-  (define (claim-point-at p q)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p points-at ,q)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
-    (Claim p 'points-at q))
 
   (When ((has-whiskers ,?p #t)
          ((page left) ,?p ,?x)
@@ -257,7 +219,7 @@
    do (let* ((w (/ ?width 2))
              (px (+ ?x w))
              (py (- ?y 50)))
-         (claim-pointer-at ?p (cons px py)) ))
+         (Claim ?p 'pointer-at (cons px py)) ))
 
   (When ((pointer-at ,?p (,?px . ,?py))
          ((page left) ,?q ,?qx)
@@ -269,12 +231,13 @@
                (< ?px (+ ?qx ?qw))
                (> ?py ?qy)
                (< ?py (+ ?qy ?qh)))
-         (claim-point-at ?p ?q)))
+         (Claim ?p 'point-at ?q)))
 )))
 
 (define blackpage (add-page (make-page-code
   (define (wish-updates page updates)
     (for-each (lambda (update) 
+      ; todo: use derived-wish! ?
       (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,page updates ,update)) #t)
       (Wish page 'updates update))
     updates))
@@ -466,21 +429,13 @@
                 (row-loop (+ y 1) (cons (reverse cols) rows))
                 (col-loop (+ x 1) (cons (hashtable-ref state (cons x y) #f) cols)))))))
 
-  (define (claim-state)
+  ; i.e. forever, but conditional claims since our state will change
+  (When ((mora-jai ,this ,?sol)) do
     ; we know this runs each iteration at the start
     (set! pointed-at-prev pointed-at)
     (set! pointed-at #f)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this was-pointed-at ,pointed-at-prev)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this was-pointed-at ,pointed-at-prev) #t)
     (Claim this 'was-pointed-at pointed-at-prev)
-    (let ((state (state-list)))
-      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-state ,state)) #t)
-      (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
-      (Claim this 'mora-jai-state state)))
-
-  ; i.e. forever, but conditional claims since our state will change
-  (When ((mora-jai ,this ,?sol)) do
-    (claim-state))
+    (Claim this 'mora-jai-state (state-list)))
 
   (When ((points-at ,?p ,?button)
          (button ,?button (,this ,?x ,?y ,?color)))
@@ -525,21 +480,13 @@
                 (row-loop (+ y 1) (cons (reverse cols) rows))
                 (col-loop (+ x 1) (cons (hashtable-ref state (cons x y) #f) cols)))))))
 
-  (define (claim-state)
+  ; i.e. forever, but conditional claims since our state will change
+  (When ((mora-jai ,this ,?sol)) do
     ; we know this runs each iteration at the start
     (set! pointed-at-prev pointed-at)
     (set! pointed-at #f)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this was-pointed-at ,pointed-at-prev)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this was-pointed-at ,pointed-at-prev) #t)
     (Claim this 'was-pointed-at pointed-at-prev)
-    (let ((state (state-list)))
-      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-state ,state)) #t)
-      (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
-      (Claim this 'mora-jai-state state)))
-
-  ; i.e. forever, but conditional claims since our state will change
-  (When ((mora-jai ,this ,?sol)) do
-    (claim-state))
+    (Claim this 'mora-jai-state (state-list)))
 
   (When ((points-at ,?p ,?button)
          (button ,?button (,this ,?x ,?y ,?color)))
@@ -584,21 +531,13 @@
                 (row-loop (+ y 1) (cons (reverse cols) rows))
                 (col-loop (+ x 1) (cons (hashtable-ref state (cons x y) #f) cols)))))))
 
-  (define (claim-state)
+  ; i.e. forever, but conditional claims since our state will change
+  (When ((mora-jai ,this ,?sol)) do
     ; we know this runs each iteration at the start
     (set! pointed-at-prev pointed-at)
     (set! pointed-at #f)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this was-pointed-at ,pointed-at-prev)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this was-pointed-at ,pointed-at-prev) #t)
     (Claim this 'was-pointed-at pointed-at-prev)
-    (let ((state (state-list)))
-      (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this mora-jai-state ,state)) #t)
-      (hashtable-set! (datalog-idb (get-dl)) `(,this mora-jai-state ,state) #t)
-      (Claim this 'mora-jai-state state)))
-
-  ; i.e. forever, but conditional claims since our state will change
-  (When ((mora-jai ,this ,?sol)) do
-    (claim-state))
+    (Claim this 'mora-jai-state (state-list)))
 
   (When ((points-at ,?p ,?button)
          (button ,?button (,this ,?x ,?y ,?color)))

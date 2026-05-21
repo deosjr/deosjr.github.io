@@ -9,6 +9,9 @@ window.addEventListener("load", async () => {
         console: {
           log(str) { console.log(str); }
         },
+        date: {
+          now() { return Date.now(); }
+        },
         document: {
           body() { return document.body; },
           getElementById: Document.prototype.getElementById.bind(document),

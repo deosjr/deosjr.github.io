@@ -112,21 +112,10 @@
 (define page2 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
 
-  (define (claim-has-whiskers p)
-    (Claim p 'has-whiskers #t))
   (When ((wishes ,?p (,?p has-whiskers ,#t))) do
-    (claim-has-whiskers ?p))
+    (Claim ?p 'has-whiskers #t))
   (When ((has-whiskers ,?p #t)) do
     (add-class! (get-page ?p) "whisker"))
-
-  (define (claim-pointer-at p point)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p pointer-at ,point)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p pointer-at ,point) #t)
-    (Claim p 'pointer-at point))
-  (define (claim-point-at p q)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p points-at ,q)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
-    (Claim p 'points-at q))
 
   (When ((has-whiskers ,?p #t)
          ((page left) ,?p ,?x)
@@ -136,7 +125,7 @@
    do (let* ((w (/ ?width 2))
              (px (+ ?x w))
              (py (- ?y 50)))
-         (claim-pointer-at ?p (cons px py)) ))
+         (Claim ?p 'pointer-at (cons px py)) ))
 
   (When ((pointer-at ,?p ,?point)
          (link-dimensions ,?q (,?qx ,?qy ,?qw ,?qh)))
@@ -146,7 +135,7 @@
                  (< px (+ ?qx ?qw))
                  (> py ?qy)
                  (< py (+ ?qy ?qh)))
-           (claim-point-at ?p ?q))))
+           (Claim ?p 'points-at ?q))))
 )))
 
 ; extra pointer page

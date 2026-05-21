@@ -66,19 +66,6 @@
   (When ((has-whiskers ,?p #t)) do
     (add-class! (get-page ?p) "whisker"))
 
-  (define (claim-pointer-at p point)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p pointer-at ,point)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p pointer-at ,point) #t)
-    (Claim p 'pointer-at point))
-  (define (claim-point-at p q)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p points-at ,q)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
-    (Claim p 'points-at q))
-  (define (claim-not-point-at p q)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p not-points-at ,q)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p not-points-at ,q) #t)
-    (Claim p 'not-points-at q))
-
   (When ((has-whiskers ,?p #t)
          ((page left) ,?p ,?x)
          ((page top) ,?p ,?y)
@@ -87,7 +74,7 @@
    do (let* ((w (/ ?width 2))
              (px (+ ?x w))
              (py (- ?y 50)))
-         (claim-pointer-at ?p (cons px py)) ))
+         (Claim ?p 'pointer-at (cons px py)) ))
 
   (When ((pointer-at ,?p ,?point)
          ((page left) ,?q ,?qx)
@@ -101,8 +88,8 @@
                  (< px (+ ?qx ?qw))
                  (> py ?qy)
                  (< py (+ ?qy ?qh)))
-           (claim-point-at ?p ?q)
-           (claim-not-point-at ?p ?q))))
+           (Claim ?p 'points-at ?q)
+           (Claim ?p 'not-points-at ?q))))
 )))
 
 (define page1div (get-page page1))

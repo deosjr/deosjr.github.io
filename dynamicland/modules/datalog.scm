@@ -12,6 +12,7 @@
             datalog-idx-attr
             set-datalog-idb!
             dl-assert!
+            dl-assert-derived!
             dl-assert-rule!
             dl-record!
             dl-rule!
@@ -50,6 +51,13 @@
 
 (define (dl-assert! dl entity attr value)
   (hashtable-set! (datalog-edb dl) (list entity attr value) #t)
+  (dl-update-indices! dl (list entity attr value)))
+
+; sibling of dl-assert! for facts derived during fixpoint: writes to the IDB
+; (so the next dl-fixpoint! reset can retract them) and to the indices (so
+; dl-findo can match them in subsequent iterations).
+(define (dl-assert-derived! dl entity attr value)
+  (hashtable-set! (datalog-idb dl) (list entity attr value) #t)
   (dl-update-indices! dl (list entity attr value)))
 
 (define (dl-update-indices! dl tuple)

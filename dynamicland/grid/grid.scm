@@ -137,13 +137,8 @@
   ; consumes MW variable over time
   ; todo: t is in millis and jumps per ~100 or so, making this look weird
   ; but thats mostly fine, we just want some random variation
-  (define (claim-consumption mw)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this consumes ,mw)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this consumes ,mw) #t)
-    (Claim this 'consumes mw))
-
   (When ((time now ,?t)) do
-    (claim-consumption (inexact->exact (round (+ 300 (* 20 (sin (* 0.1 ?t))))))))
+    (Claim this 'consumes (inexact->exact (round (+ 300 (* 20 (sin (* 0.1 ?t))))))))
 )))
 
 ; todo: sum and claim facts about the consumed MW in the same way
@@ -160,9 +155,9 @@
 
   ; we start this rule with production/consumption summed in previous iteration
   (When ((time now ,?t)) do
-    (claim-production-mw)
+    (Claim this 'production-total-mw productionTotalMW)
     (calculate-frequency-deviation)
-    (claim-frequency)
+    (Claim this 'grid-frequency freq)
     (set! consumptionTotalMW 0)
     (set! productionTotalMW 0))
 
@@ -174,24 +169,10 @@
       (set! df newdf)
       (set! freq newfreq)))
 
-  (define (claim-frequency)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this grid-frequency ,freq)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this grid-frequency ,freq) #t)
-    (Claim this 'grid-frequency freq))
-
-  (define (claim-production-mw)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,this production-total-mw ,productionTotalMW)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this production-total-mw ,productionTotalMW) #t)
-    (Claim this 'production-total-mw productionTotalMW))
-
-  (define (wish-production-updates g mw)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,this updates-production-mw (,g ,mw))) #t)
-    (Wish this 'updates-production-mw `(,g ,mw)))
-
   ; using the wish guarantees claiming previous productionTotal goes first
   ; then productionTotal is reset to 0 and all wishes add up 
   (When ((generates ,?g ,?MW)) do
-    (wish-production-updates ?g ?MW))
+    (Wish this 'updates-production-mw `(,?g ,?MW)))
 
   ; we have to claim ?g though we dont use it so wishes are unique!
   (When ((wishes ,this (,this updates-production-mw (,?g ,?MW)))) do

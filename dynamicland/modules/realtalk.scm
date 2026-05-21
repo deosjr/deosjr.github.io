@@ -7,6 +7,7 @@
   #:use-module (hoot gensym)
   #:use-module (hoot hashtables)
   #:export (Claim Wish When
+            derived-claim! derived-wish!
             make-page-code
             make-dynamic
             add-page
@@ -47,6 +48,17 @@
        (with-syntax ((this (datum->syntax stx 'this)))
        #'(dl-assert! (get-dl) this 'wishes (list id attr value)))))))
 
+; Used by the When macro to implement Claim/Wish *inside* a rule body.
+; Mirror of Claim/Wish but routed through dl-assert-derived! so writes land in
+; the IDB (re-derived next iteration if the rule still fires, retracted by the
+; next dl-fixpoint! reset when it stops).
+(define (derived-claim! this id attr value)
+  (dl-assert-derived! (get-dl) this 'claims (list id attr value))
+  (dl-assert-derived! (get-dl) id attr value))
+
+(define (derived-wish! this id attr value)
+  (dl-assert-derived! (get-dl) this 'wishes (list id attr value)))
+
 #|
 (define-syntax When
   (lambda (stx)
@@ -85,6 +97,21 @@
               (begin (set! seen (cons d seen)) #t))))
       (filter unique syms))
 
+  ; Rewrite Claim/Wish forms inside the rule body to derived-claim!/derived-wish!,
+  ; threading the rule's `this` in explicitly so they don't depend on macro
+  ; hygiene to find it. Nested When is disallowed.
+  (define (rewrite-body datum)
+    (cond
+      [(and (pair? datum) (eq? (car datum) 'Claim))
+       (cons 'derived-claim! (cons 'this (map rewrite-body (cdr datum))))]
+      [(and (pair? datum) (eq? (car datum) 'Wish))
+       (cons 'derived-wish! (cons 'this (map rewrite-body (cdr datum))))]
+      [(and (pair? datum) (eq? (car datum) 'When))
+       (syntax-violation 'When "nested When is not supported" stx)]
+      [(pair? datum)
+       (cons (rewrite-body (car datum)) (rewrite-body (cdr datum)))]
+      [else datum]))
+
   (define (replace-symbols datum sym->gen)
     (cond
       [(symbol? datum)
@@ -103,7 +130,7 @@
             (numvars (+ 1 (length vars)))
             (gens (generate-temporaries vars))
             (sym->gen (map cons vars gens))
-            (st-datums (syntax->datum #'(statement ...)))
+            (st-datums (rewrite-body (syntax->datum #'(statement ...))))
             (replaced-statements (replace-symbols st-datums sym->gen))
             (replaced-conditions (replace-symbols datums sym->gen)))
        #`(let* ((code `,(lambda (this #,@gens) (begin #,@replaced-statements)))
@@ -160,8 +187,8 @@
   (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) (hashtable-keys (datalog-rdb dl))))
          (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
          (new (hashtable-keys (set-difference factset (datalog-idb dl)))))
-    (set-extend! (datalog-idb dl) new)
-    (for-each (lambda (fact) (dl-update-indices! dl fact)) new)
+    (for-each (lambda (fact)
+                (dl-assert-derived! dl (car fact) (cadr fact) (caddr fact))) new)
     ; result of dl_apply_rule should be a tuple (this 'code (proc . args))
     (for-each (lambda (c)
       (let ((this (car c))

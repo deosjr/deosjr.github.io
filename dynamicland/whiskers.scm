@@ -28,15 +28,9 @@
 )))
 
 (define page2 (add-page (make-page-code
-  ; workaround (see below)
-  (define (claim-has-whiskers p)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p has-whiskers #t)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p has-whiskers #t) #t)
-    (Claim p 'has-whiskers #t))
-
   ; fulfill a page's wish to have whiskers
   (When ((wishes ,?p (,?p has-whiskers ,#t))) do
-    (claim-has-whiskers ?p))
+    (Claim ?p 'has-whiskers #t))
 
   ; declare how to 'draw' whiskers ie add css class
   (When ((has-whiskers ,?p #t)) do
@@ -47,20 +41,6 @@
   ; declare what it means to point at smth
   ; makes a hard assumption on styling, i.e. whiskers extend for 50px
 
-  ; NOTE: this is a workaround for nested macro-expansion breaking atm
-  ; The hashtable-set! part is a workaround for cleaning up derived facts:
-  ; There should probably be a difference between top-level Claims and nested Claims.
-  ; top-level is asserted/retracted with the page entering/leaving the scene
-  ; nested Claims are treated as derived facts and need to be derived every fixpoint iteration
-  (define (claim-pointer-at p point)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p pointer-at ,point)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p pointer-at ,point) #t)
-    (Claim p 'pointer-at point))
-  (define (claim-point-at p q)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p points-at ,q)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
-    (Claim p 'points-at q))
-
   (When ((has-whiskers ,?p #t)
          ((page left) ,?p ,?x)
          ((page top) ,?p ,?y)
@@ -69,7 +49,7 @@
    do (let* ((w (/ ?width 2))
              (px (+ ?x w))
              (py (- ?y 50)))
-         (claim-pointer-at ?p (cons px py)) ))
+         (Claim ?p 'pointer-at (cons px py)) ))
 
   ; NOTE: this fires for every page, since we can't calculate in the db atm!
   (When ((pointer-at ,?p ,?point)
@@ -84,12 +64,7 @@
                  (< px (+ ?qx ?qw))
                  (> py ?qy)
                  (< py (+ ?qy ?qh)))
-           (claim-point-at ?p ?q))))
-     ; TODO: nested Claim in When does not work!
-     ; TODO: nested When in When does double macro hygiene var substitution, which will break
-     ; TODO: solution could be to do all of this in a single substituting macro's scope?
-     ; TODO: smth that defines a page, adds (lambda (this) ...) context and inserts 'this' everywhere?
-          ;(Claim ?p 'points-at ?q))))
+           (Claim ?p 'point-at ?q))))
 )))
 
 ; NOTE that using css class this way goes against Dynamicland principles in the following ways:
@@ -126,19 +101,6 @@
 ; whiskers, but improved. replaces page 2 and 3
 ; whisker length == page height
 (define page5 (add-page (make-page-code
-  (define (claim-has-whiskers p)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p has-whiskers #t)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p has-whiskers #t) #t)
-    (Claim p 'has-whiskers #t))
-  (define (claim-pointer-at p point)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p pointer-at ,point)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p pointer-at ,point) #t)
-    (Claim p 'pointer-at point))
-  (define (claim-point-at p q)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p points-at ,q)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
-    (Claim p 'points-at q))
-
   (define pi 3.1415926536)
   (define (css-deg->radians deg)
     (let* ((adjusted (- 450 deg))
@@ -150,7 +112,7 @@
       (string->number substr)))
 
   (When ((wishes ,?p (,?p has-whiskers ,#t))) do
-    (claim-has-whiskers ?p))
+    (Claim ?p 'has-whiskers #t))
 
   ; page rotates around midpoint: from there to whisker end, add halfh + whisker length
   ; todo: we could be using DOMMatrix.transformPoint instead?
@@ -186,7 +148,7 @@
          (set-attribute! line "y2" (number->string endy))
          (set-attribute! line "stroke" "green")
          (set-attribute! line "stroke-width" "2")
-         (claim-pointer-at ?p (cons endx endy))))
+         (Claim ?p 'pointer-at (cons endx endy))))
 
   ; NOTE: this fires for every page, since we can't calculate in the db atm!
   ; todo: rotated page now checks bounding box, not actual div dimensions
@@ -203,7 +165,7 @@
                  (< px (+ ?qx ?qw))
                  (> py ?qy)
                  (< py (+ ?qy ?qh)))
-           (claim-point-at ?p ?q))))
+           (Claim ?p 'points-at ?q))))
 )))
 
 (define page1div (get-page page1))

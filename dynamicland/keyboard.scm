@@ -49,19 +49,6 @@
 )))
 
 (define page3 (add-page (make-page-code
-  (define (claim-has-whiskers p)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p has-whiskers #t)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p has-whiskers #t) #t)
-    (Claim p 'has-whiskers #t))
-  (define (claim-pointer-at p point)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p pointer-at ,point)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p pointer-at ,point) #t)
-    (Claim p 'pointer-at point))
-  (define (claim-point-at p q)
-    (hashtable-set! (datalog-idb (get-dl)) `(,this claims (,p points-at ,q)) #t)
-    (hashtable-set! (datalog-idb (get-dl)) `(,p points-at ,q) #t)
-    (Claim p 'points-at q))
-
   (define pi 3.1415926536)
   (define (css-deg->radians deg)
     (let* ((adjusted (- 450 deg))
@@ -73,7 +60,7 @@
       (string->number substr)))
 
   (When ((wishes ,?p (,?p has-whiskers ,#t))) do
-    (claim-has-whiskers ?p))
+    (Claim ?p 'has-whiskers #t))
 
   ; page rotates around midpoint: from there to whisker end, add halfh + whisker length
   ; todo: we could be using DOMMatrix.transformPoint instead?
@@ -109,7 +96,7 @@
          (set-attribute! line "y2" (number->string endy))
          (set-attribute! line "stroke" "green")
          (set-attribute! line "stroke-width" "2")
-         (claim-pointer-at ?p (cons endx endy))))
+         (Claim ?p 'pointer-at (cons endx endy))))
 
   ; NOTE: this fires for every page, since we can't calculate in the db atm!
   ; todo: rotated page now checks bounding box, not actual div dimensions
@@ -126,7 +113,7 @@
                  (< px (+ ?qx ?qw))
                  (> py ?qy)
                  (< py (+ ?qy ?qh)))
-           (claim-point-at ?p ?q))))
+           (Claim ?p 'points-at ?q))))
 )))
 
 (define page1div (get-page page1))
