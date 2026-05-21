@@ -22,6 +22,9 @@
 (define-foreign set-property!
     "element" "setProperty"
     (ref null extern) (ref string) (ref string) -> none)
+(define-foreign get-attribute
+    "element" "getAttribute"
+    (ref null extern) (ref string) -> (ref string))
 (define-foreign query-selector-all
     "element" "querySelectorAll"
     (ref null extern) (ref string) -> (ref null extern))
@@ -84,8 +87,15 @@
            (other-div (query-selector table-div "other"))
            (p (make-element "p"))
            (url (string-append urlpref ?topic))
-           ; by experimentation: this is the first paragraph when returned by wiki REST API
-           (dom (query-selector (parse-dom (wiki-html url)) "style ~ p:not([class])" ))
+           ; Parsoid wraps the lead in <section data-mw-section-id="0">.
+           ; Its first few direct <p> children are <p class="mw-empty-elt">
+           ; — placeholders for transclusion machinery — followed by the
+           ; real lead paragraph. The lead consistently has no class
+           ; attribute (just an id), so :not([class]) is the discriminator.
+           ; The direct-child `>` keeps us out of infoboxes/templates
+           ; nested inside the section.
+           (parsed (parse-dom (wiki-html url)))
+           (dom (query-selector parsed "section[data-mw-section-id=\"0\"] > p:not([class])"))
            (html (if (external-null? dom) "" (get-property dom "innerHTML"))))
       (set-attribute! text-div "class" "text-projection")
       (set-style-left! text-div (format #f "~apx" (+ ?x ?w 10)))
@@ -98,13 +108,35 @@
           (claim-link-dimensions link))
           (arr->list (query-selector-all text-div "a"))))))
 
+  ; The wiki article slug for a rendered link, or #f if the link points
+  ; somewhere we can't fetch via the REST API.
+  ;
+  ; MediaWiki returns article references as <a href="./Article_Title">. The
+  ; slug is exactly what the API wants — already URL-encoded, with the right
+  ; case and underscores. The link's visible text (innerHTML) is the
+  ; *display* form, which usually differs (lowercased, spaces instead of
+  ; underscores, sometimes wrapped in <i> or <span> markup). Using innerHTML
+  ; happens to work for short single-word links and silently 404s on
+  ; everything else.
+  ;
+  ; We also skip:
+  ;   - external links (href doesn't start with "./")
+  ;   - fragment-only links (href starts with "#")
+  (define (link->topic link)
+    (let ((href (get-attribute link "href")))
+      (cond ((and (>= (string-length href) 2)
+                  (string=? (substring href 0 2) "./"))
+             (substring href 2 (string-length href)))
+            (else #f))))
+
   (When ((points-at ,?p ,?link)
          ((page left) ,?p ,?x)
          ((page top) ,?p ,?y)
          ((page width) ,?p ,?w))
-   do (let ((topic (get-property ?link "innerHTML")))
-        (set-background! ?link "hotpink")
-        (claim-wiki-text ?p ?x ?y ?w topic)))
+   do (let ((topic (link->topic ?link)))
+        (when topic
+          (set-background! ?link "hotpink")
+          (claim-wiki-text ?p ?x ?y ?w topic))))
 )))
 
 ; whiskers. see whiskers.scm

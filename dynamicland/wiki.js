@@ -86,6 +86,7 @@ window.addEventListener("load", async () => {
           getHeight(elem) { return elem.height },
           getProperty(elem, key) { return elem[key]; },
           setProperty(elem, key, value) { elem[key] = value; },
+          getAttribute(elem, key) { return elem.getAttribute(key) ?? ""; },
           focus(elem) { elem.focus(); },
           querySelector(elem, string) { return elem.querySelector(string); },
           querySelectorAll(elem, string) { return Array.from(elem.querySelectorAll(string)); }
