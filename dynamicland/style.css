@@ -74,10 +74,18 @@ main {
 	justify-content: center;
 	align-items: center;
 	user-select: none;
+	/* Prevent the browser from interpreting a touch-drag as a page scroll/zoom
+	   gesture; we own all pointer events on this element. */
+	touch-action: none;
 }
 
 .page:hover {
 	box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.5);
+}
+
+.page.dragging {
+	z-index: 1;
+	cursor: grabbing;
 }
 
 .page content {

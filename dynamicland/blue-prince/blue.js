@@ -26,6 +26,9 @@ window.addEventListener("load", async () => {
           setStyle(elem, value) { elem.style = value },
           setBackground(elem, value) { elem.style.background = value },
           addClass(elem, className) { elem.classList.add(className); },
+          removeClass(elem, className) { elem.classList.remove(className); },
+          removeEventListener(elem, name, f) { elem.removeEventListener(name, f, true); },
+          setPointerCapture(elem, id) { elem.setPointerCapture(id); },
           setZIndex(elem, value) { elem.style.zIndex = value },
           setLeft(elem, value) { elem.style.left = value },
           setTop(elem, value) { elem.style.top = value },
@@ -58,6 +61,7 @@ window.addEventListener("load", async () => {
         event: {
           preventDefault(e) { e.preventDefault() },
           mouseX(e) { return e.clientX },
+          pointerId(e) { return e.pointerId },
           mouseY(e) { return e.clientY },
           firstTouch(e) { return e.changedTouches[0] },
           getKey(e) { return e.key }

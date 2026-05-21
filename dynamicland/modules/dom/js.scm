@@ -12,7 +12,11 @@
             set-attribute!
             set-background!
             add-class!
+            remove-class!
             add-event-listener!
+            remove-event-listener!
+            set-pointer-capture!
+            pointer-id
             mouse-x
             mouse-y
             offset-left
@@ -35,7 +39,6 @@
             get-height
             get-bounding-client-rect
             prevent-default
-            first-touch
             focus
             date-now
             query-selector
@@ -77,9 +80,21 @@
 (define-foreign add-class!
     "element" "addClass"
     (ref null extern) (ref string) -> none)
+(define-foreign remove-class!
+    "element" "removeClass"
+    (ref null extern) (ref string) -> none)
 (define-foreign add-event-listener!
   "element" "addEventListener"
   (ref null extern) (ref string) (ref null extern) -> none)
+(define-foreign remove-event-listener!
+  "element" "removeEventListener"
+  (ref null extern) (ref string) (ref null extern) -> none)
+(define-foreign set-pointer-capture!
+  "element" "setPointerCapture"
+  (ref null extern) i32 -> none)
+(define-foreign pointer-id
+  "event" "pointerId"
+  (ref null extern) -> i32)
 (define-foreign mouse-x
   "event" "mouseX"
   (ref null extern) -> i32)
@@ -146,9 +161,6 @@
 (define-foreign prevent-default
   "event" "preventDefault"
   (ref null extern) -> none)
-(define-foreign first-touch
-  "event" "firstTouch"
-  (ref null extern) -> (ref null extern))
 (define-foreign focus
   "element" "focus"
   (ref null extern) -> none)

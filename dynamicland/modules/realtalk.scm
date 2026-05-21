@@ -328,56 +328,73 @@
 
 (define (get-pages) *pages*)
 
-(define *mouse-down* #f)
-(define *mouse-offset-x* 0)
-(define *mouse-offset-y* 0)
-
-(define (div-on-press div e)
-  (set-z-index! div "1")
-  (set! *mouse-offset-x* (- (offset-left div) (mouse-x e)))
-  (set! *mouse-offset-y* (- (offset-top div) (mouse-y e)))
-  (set! *mouse-down* #t))
-
-(define (div-on-release div e)
-    (set-z-index! div "0")
-    (recalculate-pages)
-    (set! *mouse-down* #f))
-
-(define (div-on-move div pid e first-e)
-  (prevent-default e)
-  (if *mouse-down*
-    (let ((newleft (+ (mouse-x first-e) *mouse-offset-x*))
-          (newtop (+ (mouse-y first-e) *mouse-offset-y*)))
-      (set-z-index! div "1")
-      (set-style-left! div (format #f "~apx" newleft))
-      (set-style-top! div (format #f "~apx" newtop))
-      (let* ((table (get-element-by-id "table"))
-             (on-table ((on-table? table) pid))
-             (last-known-location (hashtable-ref *page-locations* pid #f)))
-        (if on-table (update-page-geometry pid div))
-        (if (and on-table (not last-known-location))
-          (begin
-            (hashtable-set! *page-locations* pid table)
-            (page-moved-onto-table table pid))
-          (if (and (not on-table) last-known-location)
-            (begin
-              (hashtable-delete! *page-locations* pid) ; assumes single table in dom
-              (page-moved-from-table table pid))))))))
+; --- Dragging --------------------------------------------------------
+;
+; Uses Pointer Events so the same handlers cover mouse, touch, and pen.
+; On press, we attach `pointermove` / `pointerup` / `pointercancel` to
+; the window (not the div) and capture the pointer to this element.
+; That gives us three properties:
+;
+;   - the drag continues even if the cursor leaves the div
+;   - the release fires even if the cursor is off-card or off-window
+;   - cards that aren't being dragged have zero idle listeners
+;
+; All drag state (offset, the handler refs we need to remove) lives in
+; the closure built on press — no module-level globals.
 
 (define (make-div-draggable div pid)
-  (add-event-listener! div "mousedown" (procedure->external (lambda (e)
-    (div-on-press div e))))
-  (add-event-listener! div "mouseup" (procedure->external (lambda (e)
-    (div-on-release div e))))
-  (add-event-listener! div "mousemove" (procedure->external (lambda (e)
-    (div-on-move div pid e e))))
-; duplicate for touch events
-  (add-event-listener! div "touchstart" (procedure->external (lambda (e)
-    (div-on-press div (first-touch e)))))
-  (add-event-listener! div "touchend" (procedure->external (lambda (e)
-    (div-on-release div e))))
-  (add-event-listener! div "touchmove" (procedure->external (lambda (e)
-    (div-on-move div pid e (first-touch e))))))
+  (add-event-listener! div "pointerdown"
+    (procedure->external (lambda (e) (begin-drag div pid e)))))
+
+(define (begin-drag div pid e)
+  (prevent-default e)
+  (set-pointer-capture! div (pointer-id e))
+  (add-class! div "dragging")
+  (let* ((rect (get-bounding-client-rect div))
+         ; Anchor: the offset from the cursor to the div's origin at
+         ; press time. Adding this to subsequent cursor positions gives
+         ; the new translate() target.
+         (dx (- (get-x rect) (mouse-x e)))
+         (dy (- (get-y rect) (mouse-y e)))
+         ; on-move and on-end are mutually recursive references through
+         ; the closure: on-end needs to pass on-move and itself to
+         ; remove-event-listener!. Set! after define gives us that.
+         (on-move #f)
+         (on-end  #f))
+    (set! on-move (procedure->external
+                    (lambda (e) (drag-to div pid e dx dy))))
+    (set! on-end  (procedure->external
+                    (lambda (e) (end-drag div on-move on-end))))
+    (add-event-listener! (window) "pointermove"   on-move)
+    (add-event-listener! (window) "pointerup"     on-end)
+    (add-event-listener! (window) "pointercancel" on-end)))
+
+(define (drag-to div pid e dx dy)
+  (let ((x (+ (mouse-x e) dx))
+        (y (+ (mouse-y e) dy)))
+    ; We use left/top rather than transform: translate because `transform`
+    ; is owned by the rotation system (update-page-rotation). Mixing the
+    ; two would require composing them via CSS custom properties — worth
+    ; doing if drag perf becomes an issue.
+    (set-style-left! div (format #f "~apx" x))
+    (set-style-top!  div (format #f "~apx" y))
+    (let* ((table (get-element-by-id "table"))
+           (on-table ((on-table? table) pid))
+           (last (hashtable-ref *page-locations* pid #f)))
+      (if on-table (update-page-geometry pid div))
+      (cond ((and on-table (not last))
+             (hashtable-set! *page-locations* pid table)
+             (page-moved-onto-table table pid))
+            ((and (not on-table) last)
+             (hashtable-delete! *page-locations* pid)
+             (page-moved-from-table table pid))))))
+
+(define (end-drag div on-move on-end)
+  (remove-event-listener! (window) "pointermove"   on-move)
+  (remove-event-listener! (window) "pointerup"     on-end)
+  (remove-event-listener! (window) "pointercancel" on-end)
+  (remove-class! div "dragging")
+  (recalculate-pages))
 
 (define (make-div-focusable div pid)
   (add-event-listener! div "mouseenter" (procedure->external (lambda (e)
