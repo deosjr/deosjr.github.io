@@ -9,6 +9,9 @@ window.addEventListener("load", async () => {
         console: {
           log(str) { console.log(str); }
         },
+        date: {
+          now() { return Date.now(); }
+        },
         document: {
           body() { return document.body; },
           getElementById: Document.prototype.getElementById.bind(document),
@@ -54,8 +57,8 @@ window.addEventListener("load", async () => {
         }
       }});
   } catch(e) {
+    console.error("[dynamicland] load_main threw:", e);
     if(e instanceof WebAssembly.CompileError) {
-	console.log(e);
       document.getElementById("wasm-error").hidden = false;
     }
   }

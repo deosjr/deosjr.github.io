@@ -52,6 +52,9 @@ window.addEventListener("load", async () => {
         console: {
           log(str) { console.log(str); }
         },
+        date: {
+          now() { return Date.now(); }
+        },
         event: {
           preventDefault(e) { e.preventDefault() },
           mouseX(e) { return e.clientX },
