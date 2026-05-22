@@ -357,12 +357,14 @@
   (prevent-default e)
   (set-pointer-capture! div (pointer-id e))
   (add-class! div "dragging")
-  (let* ((rect (get-bounding-client-rect div))
-         ; Anchor: the offset from the cursor to the div's origin at
-         ; press time. Adding this to subsequent cursor positions gives
-         ; the new translate() target.
-         (dx (- (get-x rect) (mouse-x e)))
-         (dy (- (get-y rect) (mouse-y e)))
+  ; Anchor: the offset from the cursor to the div's origin at press time.
+  ; Use offsetLeft/offsetTop (not getBoundingClientRect) because those are
+  ; in the same coordinate system as CSS `left`/`top` — i.e. relative to
+  ; the offset parent. getBoundingClientRect would give viewport coords,
+  ; which differ from style.left/top by the page scroll offset and cause
+  ; dragged divs to jump to scrollY=0 when the page isn't at the top.
+  (let* ((dx (- (offset-left div) (mouse-x e)))
+         (dy (- (offset-top  div) (mouse-y e)))
          ; on-move and on-end are mutually recursive references through
          ; the closure: on-end needs to pass on-move and itself to
          ; remove-event-listener!. Set! after define gives us that.
