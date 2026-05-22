@@ -1,0 +1,73 @@
+window.addEventListener("load", async () => {
+  try {
+    await Scheme.load_main("live.wasm", {
+      reflect_wasm_dir: ".",
+      user_imports: {
+        window: {
+          window() { return window; }
+        },
+        document: {
+          body() { return document.body; },
+          getElementById: Document.prototype.getElementById.bind(document),
+          createTextNode: Document.prototype.createTextNode.bind(document),
+          createElement: Document.prototype.createElement.bind(document),
+          createSVGElement(name) { return document.createElementNS("http://www.w3.org/2000/svg", name)}
+        },
+        console: {
+          log(str) { console.log(str); }
+        },
+        date: {
+          now() { return Date.now(); }
+        },
+        element: {
+          removeElement(elem) { elem.remove(); },
+          getProperty(elem, key) { return elem[key]; },
+          setProperty(elem, key, value) { elem[key] = value; },
+          setAttribute(elem, name, value) { elem.setAttribute(name, value); },
+          setStyle(elem, value) { elem.style = value },
+          setBackground(elem, value) { elem.style.background = value },
+          addClass(elem, className) { elem.classList.add(className); },
+          removeClass(elem, className) { elem.classList.remove(className); },
+          setZIndex(elem, value) { elem.style.zIndex = value },
+          setLeft(elem, value) { elem.style.left = value },
+          setTop(elem, value) { elem.style.top = value },
+          setTransform(elem, value) { elem.style.transform = value },
+          setPosition(elem, value) { elem.style.position = value },
+          setInnerHTML(elem, value) { elem.innerHTML = value },
+          getZIndex(elem) { return elem.style.zIndex },
+          getLeft(elem) { return elem.style.left },
+          getTop(elem) { return elem.style.top },
+          getTransform(elem) { return elem.style.transform },
+          getPosition(elem) { return elem.style.position },
+          addEventListener(elem, name, f) { elem.addEventListener(name, f, true); },
+          removeEventListener(elem, name, f) { elem.removeEventListener(name, f, true); },
+          setPointerCapture(elem, id) { elem.setPointerCapture(id); },
+          appendChild(parent, child) { return parent.appendChild(child); },
+          offsetLeft(elem) { return elem.offsetLeft; },
+          offsetTop(elem) { return elem.offsetTop; },
+          getBoundingClientRect(elem) { return elem.getBoundingClientRect() },
+          getX(elem) { return elem.x },
+          getY(elem) { return elem.y },
+          getWidth(elem) { return elem.width },
+          getHeight(elem) { return elem.height },
+          focus(elem) { elem.focus(); },
+          querySelector(elem, string) { return elem.querySelector(string); }
+        },
+        event: {
+          preventDefault(e) { e.preventDefault() },
+          mouseX(e) { return e.clientX },
+          mouseY(e) { return e.clientY },
+          pointerId(e) { return e.pointerId },
+          getKey(e) { return e.key }
+        }
+      }});
+  } catch(e) {
+    console.error("[live] load_main threw:", e);
+    if (e && e.tag !== undefined) {
+      console.error("[live] SchemeTrap tag:", e.tag, "data:", e.data);
+    }
+    if(e instanceof WebAssembly.CompileError) {
+      document.getElementById("wasm-error").hidden = false;
+    }
+  }
+});

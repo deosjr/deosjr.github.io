@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="reflect.js"></script>
+    <script type="text/javascript" src="live.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <style>
+      .editor {
+        width: 100%;
+        min-height: 110px;
+        font-family: Consolas, monaco, monospace;
+        font-size: 14px;
+        box-sizing: border-box;
+        padding: 8px;
+      }
+      .editors {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin: 12px 0;
+      }
+      .editor-pair label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 4px;
+      }
+      .editor-pair button {
+        margin-top: 6px;
+      }
+      #output {
+        font-family: Consolas, monaco, monospace;
+        padding: 8px 10px;
+        background: rgba(0, 0, 0, .04);
+        min-height: 1.5em;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+    <p id="wasm-error" hidden="true">
+      A browser with Wasm GC and tail call support is required for this demo.
+      We recommend using either Mozilla Firefox or Google Chrome.
+    </p>
+    <h2>Live-coding two pages with Hoot's REPL</h2>
+    <p>Two RealTalk pages, each with its own code printed (well,
+    <em>typed</em>) below. Drag the cards onto the table to activate them.
+    Edit either textarea and hit Run to swap in new code: the engine
+    retracts whatever the old code had Claimed and runs the new code in
+    its place.</p>
+    <p>Eval'd code runs in <code>(realtalk)</code>'s scope &mdash;
+    <code>Claim</code>, <code>Wish</code>, <code>When</code>,
+    <code>get-page</code>, <code>set-background!</code> are all in reach
+    without imports. <code>this</code> inside the body refers to the
+    page's own id.</p>
+
+    <div id="table" class="table"></div>
+    <div id="pages" class="pages"></div>
+
+    <div class="editors">
+      <div class="editor-pair">
+        <label for="code1">page 1 code:</label>
+        <textarea id="code1" class="editor">(Claim this 'highlighted "yellow")</textarea>
+        <button id="run1">Run</button>
+      </div>
+      <div class="editor-pair">
+        <label for="code2">page 2 code:</label>
+        <textarea id="code2" class="editor">(When ((highlighted ,?p ,?color))
+ do (set-background! (get-page ?p) ?color))</textarea>
+        <button id="run2">Run</button>
+      </div>
+    </div>
+
+    <p><strong>Output:</strong></p>
+    <div id="output"></div>
+
+    <h3>Things to try</h3>
+    <p>With both cards on the table, try replacing page&nbsp;1's body with:</p>
+    <div class=code>(Claim this 'highlighted "deepskyblue")</div>
+    <p>or:</p>
+    <div class=code>(set-background! (get-page this) "pink")</div>
+    <p>Or replace page&nbsp;2's rule to be selective:</p>
+    <div class=code>(When ((highlighted ,?p ,?color))
+ do (if (string=? ?color "yellow")
+        (set-background! (get-page ?p) ?color)))</div>
+
+    <p><a href="/dynamicland">Home</a></p>
+    </main>
+  </body>
+</html>

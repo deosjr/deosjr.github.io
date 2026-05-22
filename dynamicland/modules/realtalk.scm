@@ -1,11 +1,16 @@
 (define-module (realtalk)
   #:use-module (scheme base)
+  #:use-module (scheme eval)
+  #:use-module (scheme write)
   #:use-module (dom js)
   #:use-module (minikanren)
   #:use-module (datalog)
   #:use-module (hoot ffi)
   #:use-module (hoot gensym)
   #:use-module (hoot hashtables)
+  #:use-module (hoot modules)
+  #:use-module (hoot ports)
+  #:use-module (hoot read)
   #:export (Claim Wish When
             derived-claim! derived-wish!
             make-page-code
@@ -15,7 +20,9 @@
             get-pages
             add-keyboard
             get-dl
-            recalculate-pages))
+            recalculate-pages
+            eval-string
+            recode-page!))
 
 ; RealTalk
 ; note: 'this' will have to be set within each page execution somehow?
@@ -532,3 +539,63 @@
            (< (+ divx div-width) (+ tablex table-width))
            (> divy tabley)
            (< (+ divy div-height) (+ tabley table-height))))))
+
+; ---------------------------------------------------------------------
+; REPL helper: read all top-level expressions from STR and eval each in
+; this module. Defined here so that (current-module) at the eval call
+; resolves to (realtalk), giving eval'd code access to Claim/Wish/When
+; plus everything realtalk imports — (dom js), (datalog), etc.
+;
+; call-with-values is load-bearing: FFI procedures declared `-> none`
+; return zero values, and binding a zero-value result in a single-value
+; position is an arity violation in Hoot. We collapse 0 / 1 / many
+; values down to one display-able value.
+
+(define (value->display val)
+  ; (if #f #f) is the unspecified value; print "ok" for it so the REPL
+  ; output reads like a real REPL rather than "#!unspecified".
+  (if (eq? val (if #f #f))
+      "ok"
+      (let ((p (open-output-string)))
+        (write val p)
+        (get-output-string p))))
+
+(define (exn->display exn)
+  (let ((p (open-output-string)))
+    (display "error: " p)
+    (display exn p)
+    (get-output-string p)))
+
+(define (eval-string str)
+  (guard (exn (#t (exn->display exn)))
+    (let ((port (open-input-string str)))
+      (let loop ((expr (read port)) (val (if #f #f)))
+        (if (eof-object? expr)
+            (value->display val)
+            (loop (read port)
+                  (call-with-values
+                      (lambda () (eval expr (current-module)))
+                    (lambda vals
+                      (if (null? vals) (if #f #f) (car vals))))))))))
+
+; Live-coding helper: replace the procedure on PID with SRC compiled as a
+; page body (i.e. (lambda (this) <src>)), retract any state the old
+; procedure had asserted, and re-execute. Used by the live REPL page so
+; that editing a textarea swaps the active code for a draggable card.
+;
+; The src string is wrapped with (make-page-code ...) (rather than a hand-
+; rolled (lambda (this) ...)) to reuse make-page-code's `this` injection,
+; which is hygienically the same as the rest of the realtalk macros.
+(define (recode-page! pid src)
+  (let* ((wrapped (string-append "(make-page-code " src ")"))
+         (port (open-input-string wrapped))
+         (proc (eval (read port) (current-module))))
+    ; Retract any claims/wishes/rules the old proc had asserted. The
+    ; existing page-moved-from-table helper does this; we pass #f for the
+    ; table argument since its implementation ignores that field.
+    (page-moved-from-table #f pid)
+    (hashtable-set! *procs* pid proc)
+    ; Only execute if the page is currently on the table. Otherwise the
+    ; new proc just sits ready; it'll run on the next drag-onto-table.
+    (when (hashtable-ref *page-locations* pid #f)
+      (page-moved-onto-table #f pid))))
