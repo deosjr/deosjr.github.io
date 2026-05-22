@@ -1,3 +1,10 @@
+// 10 Hz fixpoint ticker. Other demos use the same pattern: dispatch a
+// custom event, the Scheme side listens and calls recalculate-pages.
+setInterval(() => {
+    const event = new Event("update-realtalk");
+    window.dispatchEvent(event);
+}, 100)
+
 window.addEventListener("load", async () => {
   try {
     await Scheme.load_main("live.wasm", {

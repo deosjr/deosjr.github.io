@@ -78,12 +78,24 @@
     <h3>Things to try</h3>
     <p>With both cards on the table, try replacing page&nbsp;1's body with:</p>
     <div class=code>(Claim this 'highlighted "deepskyblue")</div>
-    <p>or:</p>
-    <div class=code>(set-background! (get-page this) "pink")</div>
+    <p>Or have page&nbsp;1 claim more than one fact:</p>
+    <div class=code>(Claim this 'highlighted "lavender")
+(Claim this 'wants-border #t)</div>
     <p>Or replace page&nbsp;2's rule to be selective:</p>
     <div class=code>(When ((highlighted ,?p ,?color))
  do (if (string=? ?color "yellow")
         (set-background! (get-page ?p) ?color)))</div>
+    <p>Or react to page&nbsp;1's second claim:</p>
+    <div class=code>(When ((wants-border ,?p #t))
+ do (set-attribute! (get-page ?p) "style" "border: 5px dashed red"))</div>
+    <p>Drag a card off the table and watch the engine retract its claims:
+    rules that depended on them stop firing, and on the next fixpoint
+    the visuals reset because <code>recalculate-pages</code> wipes the
+    DOM and re-derives it from whatever facts remain.</p>
+    <p>Direct mutations like <code>(set-background! (get-page this)
+    "pink")</code> inside a page body run once and then get wiped by
+    the next reset &mdash; that's by design. Always write Claims for
+    facts you want to persist, and let rules do the drawing.</p>
 
     <p><a href="/dynamicland">Home</a></p>
     </main>

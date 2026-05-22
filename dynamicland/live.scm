@@ -21,6 +21,12 @@
 
 (make-dynamic)
 
+; Tick: live.js dispatches "update-realtalk" on window every 100ms.
+; recalculate-pages resets DOM state and re-runs the fixpoint, so visuals
+; stay in sync with whatever the current claims and rules imply.
+(add-event-listener! (window) "update-realtalk"
+  (procedure->external (lambda (e) (recalculate-pages))))
+
 ; Two pages whose initial bodies are no-ops. The textareas hold the code
 ; we actually want and we apply it on page load just below.
 (define page1 (add-page (make-page-code #f)))
