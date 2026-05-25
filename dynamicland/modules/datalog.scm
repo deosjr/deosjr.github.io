@@ -10,6 +10,7 @@
             datalog-rdb
             datalog-idx-entity
             datalog-idx-attr
+            datalog-idx-eav
             set-datalog-idb!
             dl-assert!
             dl-assert-derived!
@@ -30,13 +31,14 @@
             foldl set-extend! set-difference)) ;  :(
 
 (define-record-type <datalog>
-  (make-datalog edb idb rdb idx-entity idx-attr counter)
+  (make-datalog edb idb rdb idx-entity idx-attr idx-eav counter)
   datalog?
   (edb        datalog-edb)
   (idb        datalog-idb set-datalog-idb!)
   (rdb        datalog-rdb set-datalog-rdb!)
   (idx-entity datalog-idx-entity)
   (idx-attr   datalog-idx-attr)
+  (idx-eav    datalog-idx-eav)
   (counter    datalog-counter set-datalog-counter!))
 
 (define (make-new-datalog)
@@ -46,6 +48,7 @@
    (make-hashtable)   ; rdb
    (make-hashtable)   ; idx-entity
    (make-hashtable)   ; idx-attr
+   (make-hashtable)   ; idx-eav
    0))                ; counter
 
 (define (dl-next-id! dl)
@@ -81,7 +84,8 @@
    (let ((entity (car tuple))
          (attr (cadr tuple))
          (idx-entity (datalog-idx-entity dl))
-         (idx-attr (datalog-idx-attr dl)))
+         (idx-attr (datalog-idx-attr dl))
+         (idx-eav (datalog-idx-eav dl)))
      (let ((m (hashtable-ref idx-entity entity #f)))
        (if m (hashtable-set! m tuple #t)
          (let ((new (make-hashtable)))
@@ -92,6 +96,15 @@
          (let ((new (make-hashtable)))
            (hashtable-set! idx-attr attr new)
            (hashtable-set! new tuple #t))))
+     (let* ((e-bucket (or (hashtable-ref idx-eav entity #f)
+                          (let ((new (make-hashtable)))
+                            (hashtable-set! idx-eav entity new)
+                            new)))
+            (a-bucket (or (hashtable-ref e-bucket attr #f)
+                          (let ((new (make-hashtable)))
+                            (hashtable-set! e-bucket attr new)
+                            new))))
+       (hashtable-set! a-bucket tuple #t))
      (hashtable-set! *delta-attrs* attr #t)))
 
 (define-syntax dl-record!
@@ -106,13 +119,22 @@
   (syntax-rules ()
     ((_ dl (m ...)) (conj+ (dl-findo_ dl `m) ... ))))
 
+; Three mutually-exclusive cases by boundness:
+;   (entity bound, attr bound)   -> idx-eav  : best, smallest candidate set
+;   (entity bound, attr unbound) -> idx-entity
+;   (entity unbound, attr bound) -> idx-attr
+; (both unbound is unsupported — query is too open.)
 (define (dl-findo_ dl m)
    (fresh (x y entity attr db)
    (conso entity x m)
    (conso attr y x)
      (conde
-       [(boundo entity) (lookupo (datalog-idx-entity dl) entity db) (membero m db)]
-       [(unboundo entity) (boundo attr) (lookupo (datalog-idx-attr dl) attr db) (membero m db)] )))
+       [(boundo entity) (boundo attr)
+        (lookupo2 (datalog-idx-eav dl) entity attr db) (membero m db)]
+       [(boundo entity) (unboundo attr)
+        (lookupo (datalog-idx-entity dl) entity db) (membero m db)]
+       [(unboundo entity) (boundo attr)
+        (lookupo (datalog-idx-attr dl) attr db) (membero m db)] )))
 
 ; compiles the rule to a goal function
 ; here we need to find the ?vars and assert #`(fresh-vars #,num-vars (lambda (#,@vars) (conj (equalo q #,head) (dl_findo #,@body))))
@@ -232,15 +254,19 @@
   (dl-find rule))
 
 ; todo: remove from edb? doesn't matter atm
-(define (dl-retract! dl tuple) 
+(define (dl-retract! dl tuple)
    (let ((entity (car tuple))
          (attr (cadr tuple))
          (idx-entity (datalog-idx-entity dl))
-         (idx-attr (datalog-idx-attr dl)))
+         (idx-attr (datalog-idx-attr dl))
+         (idx-eav (datalog-idx-eav dl)))
      (let ((m (hashtable-ref idx-entity entity #f)))
        (if m (hashtable-delete! m tuple)))
      (let ((m (hashtable-ref idx-attr attr #f)))
-       (if m (hashtable-delete! m tuple)))))
+       (if m (hashtable-delete! m tuple)))
+     (let* ((e-bucket (hashtable-ref idx-eav entity #f))
+            (a-bucket (and e-bucket (hashtable-ref e-bucket attr #f))))
+       (if a-bucket (hashtable-delete! a-bucket tuple)))))
 
 (define (dl-retract-rule! dl rule) 
   (hashtable-delete! (datalog-rdb dl) rule))
@@ -275,6 +301,14 @@
     (lambda (s/c)
       (let* ((k (if (var? key) (walk key (car s/c)) key))
              (v (hashtable-ref m k #f)))
+       (if v ((equalo value (hashtable-keys v)) s/c) mzero))))
+
+(define (lookupo2 m key1 key2 value)
+    (lambda (s/c)
+      (let* ((k1 (if (var? key1) (walk key1 (car s/c)) key1))
+             (k2 (if (var? key2) (walk key2 (car s/c)) key2))
+             (inner (hashtable-ref m k1 #f))
+             (v (and inner (hashtable-ref inner k2 #f))))
        (if v ((equalo value (hashtable-keys v)) s/c) mzero))))
 
 (define (membero x l)
