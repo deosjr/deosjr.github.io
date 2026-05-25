@@ -23,6 +23,10 @@
             dl-fixpoint!
             dl-retract!
             dl-retract-rule!
+            ; semi-naive bookkeeping
+            reset-delta-attrs!
+            current-delta-attrs
+            rules-to-evaluate
             foldl set-extend! set-difference)) ;  :(
 
 (define-record-type <datalog>
@@ -60,6 +64,19 @@
   (hashtable-set! (datalog-idb dl) (list entity attr value) #t)
   (dl-update-indices! dl (list entity attr value)))
 
+; Semi-naive bookkeeping: every fact added to the indices pushes its attr
+; into *delta-attrs* for the current iteration. The fixpoint loop reads
+; *delta-attrs* at the end of iteration k to decide which rules to re-
+; evaluate in iteration k+1 — rules whose body attrs don't intersect with
+; delta produce no new outputs and can be skipped.
+;
+; The variable is reassigned via set! (not cleared in place) by
+; reset-delta-attrs!. Importing modules must therefore go through
+; current-delta-attrs to see the latest table, not bind the value once.
+(define *delta-attrs* (make-hashtable))
+(define (current-delta-attrs) *delta-attrs*)
+(define (reset-delta-attrs!) (set! *delta-attrs* (make-hashtable)))
+
 (define (dl-update-indices! dl tuple)
    (let ((entity (car tuple))
          (attr (cadr tuple))
@@ -74,7 +91,8 @@
        (if m (hashtable-set! m tuple #t)
          (let ((new (make-hashtable)))
            (hashtable-set! idx-attr attr new)
-           (hashtable-set! new tuple #t))))))
+           (hashtable-set! new tuple #t))))
+     (hashtable-set! *delta-attrs* attr #t)))
 
 (define-syntax dl-record!
    (syntax-rules ()
@@ -143,27 +161,72 @@
             (gens (generate-temporaries vars))
             (sym->gen (map cons vars gens))
             (replaced-head (replace-symbols head-datum sym->gen))
-            (replaced-body (replace-symbols body-datums sym->gen)))
+            (replaced-body (replace-symbols body-datums sym->gen))
+            ; The attr in each body cond is the *first* element (the
+            ; relation name in dl-rule! syntax). If any is a logic var
+            ; we don't know what it'll bind to at runtime, so mark the
+            ; whole rule as 'any (always-eligible).
+            (body-attrs (syntax->datum #'(body ...)))
+            (any-var? (let loop ((as body-attrs))
+                        (cond ((null? as) #f)
+                              ((symbol-with-question-mark? (car as)) #t)
+                              (else (loop (cdr as))))))
+            (rule-attrs-datum (if any-var? 'any body-attrs))
+            (rule-attrs (datum->syntax stx rule-attrs-datum)))
        #`(dl-assert-rule! dl (fresh-vars #,numvars
            (lambda (q #,@gens)
              (conj (equalo q `#,replaced-head)
-                   (dl-findo dl #,replaced-body) )))))))))
+                   (dl-findo dl #,replaced-body) ))) '#,rule-attrs))))))
 
-(define (dl-assert-rule! dl rule)
-  (hashtable-set! (datalog-rdb dl) rule #t))
+; Store rule -> attrs (list of attrs the body conditions match on, or
+; the symbol 'any when at least one body condition has an unknown attr —
+; e.g. a logic-variable in the attr position). Semi-naive uses this to
+; skip rules whose preconditions can't have changed.
+(define (dl-assert-rule! dl rule attrs)
+  (hashtable-set! (datalog-rdb dl) rule attrs))
+
+(define (any-in-delta? attrs delta)
+  (let loop ((as attrs))
+    (cond ((null? as) #f)
+          ((hashtable-ref delta (car as) #f) #t)
+          (else (loop (cdr as))))))
+
+; Returns the subset of rules eligible for the next iteration.
+;  - PREV-DELTA = #f means "first iteration": every rule is eligible.
+;  - Otherwise: a rule is eligible iff it's marked 'any (we don't know
+;    what attrs it depends on) OR any of its declared attrs appears in
+;    the previous iteration's delta.
+(define (rules-to-evaluate dl prev-delta)
+  (if (not prev-delta)
+      (hashtable-keys (datalog-rdb dl))
+      (let loop ((rules (hashtable-keys (datalog-rdb dl)))
+                 (eligible '()))
+        (if (null? rules) eligible
+            (let* ((rule (car rules))
+                   (attrs (hashtable-ref (datalog-rdb dl) rule #f)))
+              (loop (cdr rules)
+                    (if (or (eq? attrs 'any)
+                            (any-in-delta? attrs prev-delta))
+                        (cons rule eligible)
+                        eligible)))))))
 
 (define (dl-fixpoint! dl)
   (for-each (lambda (fact) (dl-retract! dl fact)) (hashtable-keys (datalog-idb dl)))
   (set-datalog-idb! dl (make-hashtable))
-  (dl-fixpoint-iterate dl))
+  (reset-delta-attrs!)
+  (dl-fixpoint-iterate dl #f))
 
-(define (dl-fixpoint-iterate dl)
-  (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) (hashtable-keys (datalog-rdb dl))))
-         (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
-         (new (hashtable-keys (set-difference factset (datalog-idb dl)))))
-    (set-extend! (datalog-idb dl) new)
-    (for-each (lambda (fact) (dl-update-indices! dl fact)) new)
-    (if (not (null? new)) (dl-fixpoint-iterate dl))))
+(define (dl-fixpoint-iterate dl prev-delta)
+  (let ((rules (rules-to-evaluate dl prev-delta)))
+    (if (null? rules) #t
+        (begin
+          (reset-delta-attrs!)
+          (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) rules))
+                 (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
+                 (new (hashtable-keys (set-difference factset (datalog-idb dl)))))
+            (set-extend! (datalog-idb dl) new)
+            (for-each (lambda (fact) (dl-update-indices! dl fact)) new)
+            (if (not (null? new)) (dl-fixpoint-iterate dl (current-delta-attrs))))))))
 
 (define (dl-apply-rule dl rule)
   (dl-find rule))

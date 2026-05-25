@@ -19,10 +19,10 @@
   ; confusing: reordering tuple in condition/statement is unhelpful
   ; page-local state: this var is now live as long as this page is on a table
   ;(define *testvar* 0)
-  ;(When ((highlighted ,?p ,?color)) do (append-child! (document-body) (make-text-node (format #f "VAR:~a" *testvar*))) (set! *testvar* (+ 1 *testvar*)) (set-background! (get-page ?p) ?color)))))
-  (When ((highlighted ,?p ,?color)
-         ((page left) ,this ,?thisleft)
-         ((page left) ,?p ,?thatleft))
+  ;(When ((highlighted ?p ?color)) do (append-child! (document-body) (make-text-node (format #f "VAR:~a" *testvar*))) (set! *testvar* (+ 1 *testvar*)) (set-background! (get-page ?p) ?color)))))
+  (When ((?p highlighted ?color)
+         (this (page left) ?thisleft)
+         (?p (page left) ?thatleft))
    do (if (and (< ?thisleft ?thatleft)
                (< 100 (- ?thatleft ?thisleft)))
         (set-background! (get-page ?p) ?color))))))
@@ -43,8 +43,8 @@
 ; bonus page! cycles through colors based on rotation
 (define page3 (add-page (make-page-code
   (Claim this 'prismatic #t)
-  (When ((prismatic ,?p #t)
-         ((page rotation) ,?p ,?degrees))
+  (When ((?p prismatic #t)
+         (?p (page rotation) ?degrees))
    do (set-background! (get-page ?p) (format #f "hsl(~a, 100%, 50%)" ?degrees ))))))
 (define page3div (get-page page3))
 (append-child! pages page3div)

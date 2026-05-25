@@ -66,7 +66,7 @@
       </div>
       <div class="editor-pair">
         <label for="code2">page 2 code:</label>
-        <textarea id="code2" class="editor">(When ((highlighted ,?p ,?color))
+        <textarea id="code2" class="editor">(When ((?p highlighted ?color))
  do (set-background! (get-page ?p) ?color))</textarea>
         <button id="run2">Run</button>
       </div>
@@ -82,11 +82,11 @@
     <div class=code>(Claim this 'highlighted "lavender")
 (Claim this 'wants-border #t)</div>
     <p>Or replace page&nbsp;2's rule to be selective:</p>
-    <div class=code>(When ((highlighted ,?p ,?color))
+    <div class=code>(When ((?p highlighted ?color))
  do (if (string=? ?color "yellow")
         (set-background! (get-page ?p) ?color)))</div>
     <p>Or react to page&nbsp;1's second claim:</p>
-    <div class=code>(When ((wants-border ,?p #t))
+    <div class=code>(When ((?p wants-border #t))
  do (set-attribute! (get-page ?p) "style" "border: 5px dashed red"))</div>
     <p>Drag a card off the table and watch the engine retract its claims:
     rules that depended on them stop firing, and on the next fixpoint

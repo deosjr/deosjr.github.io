@@ -47,17 +47,17 @@
 (define page1 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
 
-  (When ((points-at ,this ,?p)) do
+  (When ((this points-at ?p)) do
     (set-background! (get-page ?p) "limegreen")))))
     </div>
     <p>It is page #2 that manages the concept of having whiskers and how to draw them.
        In a future version, this page would have code to draw the visuals.</p>
     <div class=code>
 (define page2 (add-page (make-page-code
-  (When ((wishes ,?p (,?p has-whiskers ,#t))) do
+  (When ((?p wishes (?p has-whiskers #t))) do
     (Claim ?p 'has-whiskers #t))
 
-  (When ((has-whiskers ,?p #t)) do
+  (When ((?p has-whiskers #t)) do
     (add-class! (get-page ?p) "whisker")))))
     </div>
     <p>As I am currently struggling with Claims embedded in Wishes, the actual code looks slightly different at the moment.
@@ -70,20 +70,20 @@
           It breaks this up into two separate When rules:</p>
     <div class=code>
 (define page3 (add-page (make-page-code
-  (When ((has-whiskers ,?p #t)
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?width))
+  (When ((?p has-whiskers #t)
+         (?p (page left) ?x)
+         (?p (page top) ?y)
+         (?p (page width) ?width))
    do (let* ((w (/ ?width 2))
              (px (+ ?x w))
              (py (- ?y 50)))
          (Claim ?p pointer-at (cons px py))))
 
-  (When ((pointer-at ,?p ,?point)
-         ((page left) ,?q ,?qx)
-         ((page top) ,?q ,?qy)
-         ((page width) ,?q ,?qw)
-         ((page height) ,?q ,?qh))
+  (When ((?p pointer-at ?point)
+         (?q (page left) ?qx)
+         (?q (page top) ?qy)
+         (?q (page width) ?qw)
+         (?q (page height) ?qh))
    do (let ((px (car ?point))
             (py (cdr ?point)))
         (if (and (> px ?qx)
@@ -103,10 +103,10 @@
     <div class=code>
 (define page4 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
-  (When ((points-at ,this ,?p)
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?w))
+  (When (this (points-at ?p)
+         (?p (page left) ?x)
+         (?p (page top) ?y)
+         (?p (page width) ?w))
    do (let* ((dl (get-dl))
              (idx (datalog-idx-entity dl))
              (facts (hashtable-keys (hashtable-ref idx ?p #f)))

@@ -75,13 +75,13 @@
       (Claim page 'wiki args)))
 
   ; always true
-  (When (((page left) ,this ,?x)
-         ((page top) ,this ,?y)
-         ((page width) ,this ,?w))
+  (When ((this (page left) ?x)
+         (this (page top) ?y)
+         (this (page width) ?w))
    do (let ((topic (get-property (get-element-by-id "topic") "value")))
         (claim-wiki-text this ?x ?y ?w topic)))
 
-  (When ((wiki ,?p (,?x ,?y ,?w ,?topic))) do
+  (When ((?p wiki (?x ?y ?w ?topic))) do
     (let* ((text-div (make-element "div"))
            (table-div (get-element-by-id "table"))
            (other-div (query-selector table-div "other"))
@@ -129,10 +129,10 @@
              (substring href 2 (string-length href)))
             (else #f))))
 
-  (When ((points-at ,?p ,?link)
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?w))
+  (When ((?p points-at ?link)
+         (?p (page left) ?x)
+         (?p (page top) ?y)
+         (?p (page width) ?w))
    do (let ((topic (link->topic ?link)))
         (when topic
           (set-background! ?link "hotpink")
@@ -144,23 +144,23 @@
 (define page2 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
 
-  (When ((wishes ,?p (,?p has-whiskers ,#t))) do
+  (When ((?p wishes (?p has-whiskers #t))) do
     (Claim ?p 'has-whiskers #t))
-  (When ((has-whiskers ,?p #t)) do
+  (When ((?p has-whiskers #t)) do
     (add-class! (get-page ?p) "whisker"))
 
-  (When ((has-whiskers ,?p #t)
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?width))
+  (When ((?p has-whiskers #t)
+         (?p (page left) ?x)
+         (?p (page top) ?y)
+         (?p (page width) ?width))
 	; TODO: angle?
    do (let* ((w (/ ?width 2))
              (px (+ ?x w))
              (py (- ?y 50)))
          (Claim ?p 'pointer-at (cons px py)) ))
 
-  (When ((pointer-at ,?p ,?point)
-         (link-dimensions ,?q (,?qx ,?qy ,?qw ,?qh)))
+  (When ((?p pointer-at ?point)
+         (?q link-dimensions (?qx ?qy ?qw ?qh)))
    do (let ((px (car ?point))
             (py (cdr ?point)))
         (if (and (> px ?qx)

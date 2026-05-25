@@ -98,6 +98,15 @@
 ; So the When macro never executes the body directly — it just packages
 ; the body for later application during fixpoint iteration.
 ;
+; Condition surface syntax: a small DSL where
+;   ?var          -> a logic variable (matched/bound by minikanren)
+;   this          -> the page-id Scheme binding (runtime value)
+;   anything else -> a literal datum (used as the datalog attr or as a
+;                    literal structural component of entity/value)
+; No commas. The macro inserts the unquotes that dl-findo's internal
+; quasiquote needs. The body, in contrast, is plain Scheme — logic vars
+; there are just lexical bindings introduced by the rule lambda.
+;
 ; A few subtleties:
 ;
 ; * Logic variables (`?x`, `?p`, ...) are not legal Scheme identifiers, so
@@ -118,13 +127,21 @@
 ;   (derived-claim!/wish! this ...) rewrites all refer to the same
 ;   identifier — and so the lambda binding captures every body reference.
 ;
-; The xform pass below does all of this in one walk:
-;   ?var          -> its assigned gensym
-;   (Claim ...)   -> (derived-claim! this ...)   ; live for one fixpoint
-;   (Wish  ...)   -> (derived-wish!  this ...)   ; same
-;   (When  ...)   -> compile-time error (lifecycle of nested rules unclear)
-;   other symbol  -> re-anchored to user's stx
-;   pair          -> recurse on car and cdr
+; Two walkers do the work:
+;
+;   xform-cond (conditions):
+;     ?var          -> (unquote <its-gensym>)
+;     this          -> (unquote this)
+;     other symbol  -> re-anchored to user's stx (literal)
+;     pair          -> recurse on car and cdr
+;
+;   xform (body):
+;     ?var          -> its assigned gensym (bare — it's a lexical ref)
+;     (Claim ...)   -> (derived-claim! this ...)   ; live for one fixpoint
+;     (Wish  ...)   -> (derived-wish!  this ...)   ; same
+;     (When  ...)   -> compile-time error (lifecycle of nested rules unclear)
+;     other symbol  -> re-anchored to user's stx
+;     pair          -> recurse on car and cdr
 ; ----------------------------------------------------------------------
 (define-syntax When
   (lambda (stx)
@@ -176,8 +193,27 @@
         ; Ordinary form: recurse on car and cdr.
         (else (cons (recur (car datum)) (recur (cdr datum))))))
 
+    ; Like xform but for condition triples. Conditions are eventually
+    ; quasi-quoted by dl-findo, so any value we want pulled from scope
+    ; (logic vars and `this`) needs to be wrapped in (unquote ...) here.
+    ; Bare symbols stay literal — they're the datalog attr keys and the
+    ; literal structural skeleton around bound positions.
+    (define (xform-cond datum sym->gen)
+      (define (recur d) (xform-cond d sym->gen))
+      (define (here sym) (datum->syntax stx sym))
+      (cond
+        ((logic-var? datum)
+         (let ((p (assq datum sym->gen)))
+           (if p
+               (list (here 'unquote) (cdr p))
+               (here datum))))
+        ((eq? datum 'this)
+         (list (here 'unquote) (here 'this)))
+        ((not (pair? datum)) (here datum))
+        (else (cons (recur (car datum)) (recur (cdr datum))))))
+
     (syntax-case stx (do)
-      ((_ ((condition cx cy) ...) do statement ...)
+      ((_ ((cx condition cy) ...) do statement ...)
        ; Bind `this` once as a pattern variable anchored to the user's stx,
        ; so every reference to `this` below (template lambda parameter,
        ; (dl-assert! ... this ...) call, and xform-injected `this`s) all
@@ -192,27 +228,33 @@
                 (vars  (collect-logic-vars (cons conds body)))
                 (gens  (generate-temporaries vars))
                 (sym->gen (map cons vars gens))
-                (conds* (xform conds sym->gen))
-                (body*  (xform body  sym->gen)))
+                (conds* (xform-cond conds sym->gen))
+                (body*  (xform body  sym->gen))
+                ; Semi-naive: condition triples are EAV (entity attr
+                ; value), so the attr is the *middle* slot. If any is a
+                ; logic var we can't predict at expand time which attrs
+                ; the rule depends on — mark as 'any so the rule is
+                ; always eligible.
+                (body-attrs (syntax->datum #'(condition ...)))
+                (any-var? (let loop ((as body-attrs))
+                            (cond ((null? as) #f)
+                                  ((logic-var? (car as)) #t)
+                                  (else (loop (cdr as))))))
+                (rule-attrs-datum (if any-var? 'any body-attrs))
+                (rule-attrs (datum->syntax stx rule-attrs-datum)))
            ; Emitted shape:
            ;   (let* ((code      (lambda (this g1 g2 ...) body*))
            ;          (code-name (gensym))
            ;          (rule      (fresh-vars N
            ;                       (lambda (q g1 g2 ...)
            ;                         (conj
-           ;                           ; unify q with the result tuple the
-           ;                           ; engine looks up code-name in
            ;                           (equalo q (list this 'code
            ;                                           (cons code-name
            ;                                                 (list g1 g2 ...))))
-           ;                           ; the user-written conditions
            ;                           (dl-findo (get-dl) conds*))))))
-           ;     (hashtable-set! *rule-procs* code-name code)  ; register
-           ;     (dl-assert! (get-dl) this 'rules rule)        ; for retraction
-           ;     (dl-assert-rule! (get-dl) rule))              ; make it active
-           ;
-           ; N is (1 + length vars): the rule procedure takes `q` (its
-           ; output unification slot) plus one gensym per logic var.
+           ;     (hashtable-set! *rule-procs* code-name code)
+           ;     (dl-assert! (get-dl) this 'rules rule)
+           ;     (dl-assert-rule! (get-dl) rule rule-attrs))
            #`(let* ((code (lambda (this #,@gens) #,@body*))
                     (code-name (gensym))
                     (rule (fresh-vars #,(+ 1 (length vars))
@@ -222,7 +264,7 @@
                                     (dl-findo (get-dl) #,conds*))))))
                (hashtable-set! *rule-procs* code-name code)
                (dl-assert! (get-dl) this 'rules rule)
-               (dl-assert-rule! (get-dl) rule))))))))
+               (dl-assert-rule! (get-dl) rule '#,rule-attrs))))))))
 
 (define-syntax make-page-code
   (lambda (stx)
@@ -259,25 +301,33 @@
 (define dl (make-new-datalog))
 (define (get-dl) dl)
 
-; redefine dl-fixpoint! injecting code execution as result of rules
+; redefine dl-fixpoint! injecting code execution as result of rules.
+; Semi-naive: only re-evaluate rules whose body attrs intersect with
+; the deltas of the previous iteration. See datalog.scm for the
+; bookkeeping (current-delta-attrs, rules-to-evaluate).
 (define (dl-fixpoint! dl)
   (for-each (lambda (fact) (dl-retract! dl fact)) (hashtable-keys (datalog-idb dl)))
   (set-datalog-idb! dl (make-hashtable))
-  (dl-fixpoint-iterate dl))
+  (reset-delta-attrs!)
+  (dl-fixpoint-iterate dl #f))
 
-(define (dl-fixpoint-iterate dl)
-  (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) (hashtable-keys (datalog-rdb dl))))
-         (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
-         (new (hashtable-keys (set-difference factset (datalog-idb dl)))))
-    (for-each (lambda (fact)
-                (dl-assert-derived! dl (car fact) (cadr fact) (caddr fact))) new)
-    ; result of dl_apply_rule should be a tuple (this 'code (proc . args))
-    (for-each (lambda (c)
-      (let ((this (car c))
-            (proc (caaddr c))
-            (args (cdaddr c)))
-         (apply (hashtable-ref *rule-procs* proc #f) this args))) new)
-    (if (not (null? new)) (dl-fixpoint-iterate dl))))
+(define (dl-fixpoint-iterate dl prev-delta)
+  (let ((rules (rules-to-evaluate dl prev-delta)))
+    (if (null? rules) #t
+        (begin
+          (reset-delta-attrs!)   ; this iter's deltas accumulate here
+          (let* ((facts (map (lambda (rule) (dl-apply-rule dl rule)) rules))
+                 (factset (foldl (lambda (x y) (set-extend! y x)) facts (make-hashtable)))
+                 (new (hashtable-keys (set-difference factset (datalog-idb dl)))))
+            (for-each (lambda (fact)
+                        (dl-assert-derived! dl (car fact) (cadr fact) (caddr fact))) new)
+            ; result of dl_apply_rule should be a tuple (this 'code (proc . args))
+            (for-each (lambda (c)
+              (let ((this (car c))
+                    (proc (caaddr c))
+                    (args (cdaddr c)))
+                 (apply (hashtable-ref *rule-procs* proc #f) this args))) new)
+            (if (not (null? new)) (dl-fixpoint-iterate dl (current-delta-attrs))))))))
 
 (define *pages* '())
 (define *procs* (make-hashtable))
@@ -321,7 +371,7 @@
       (Claim this 'key-pressed last-key)
   )))
 
-  (When ((keyboard ,this #t)) do
+  (When ((this keyboard #t)) do
     (claim-key-pressed))
 )
 
@@ -517,9 +567,9 @@
     (dl-fixpoint! dl)))
 
 (define (assert-time)
-  (let (( claims (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (now time ,x) )))))))
-    (for-each (lambda (claim) (dl-retract! dl `(now time ,claim))) claims)
-    (dl-assert! dl 'now 'time (date-now))))
+  (let (( claims (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (time now ,x) )))))))
+    (for-each (lambda (claim) (dl-retract! dl `(time now ,claim))) claims)
+    (dl-assert! dl 'time 'now (date-now))))
 
 (define (execute-page pid)
   ((hashtable-ref *procs* pid #f) pid))

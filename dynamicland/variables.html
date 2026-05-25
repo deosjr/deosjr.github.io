@@ -30,8 +30,8 @@
   (define colors (list "limegreen" "cornflowerblue" "yellow" "red"))
   (define index -1)
 
-  (When ((points-at ,?p ,this)
-         (gives-color ,?p #t)) do
+  (When ((?p points-at this)
+         (?p gives-color #t)) do
     (set! index (modulo (+ index 1) (length colors)))
     (set-background! (get-page this) (list-ref colors index))))))
     </div>
@@ -41,15 +41,15 @@
   (define index -1)
   (define pointed-at #f)
 
-  (When ((points-at ,?p ,this)
-         (gives-color ,?p #t)) do
+  (When ((?p points-at this)
+         (?p gives-color #t)) do
     (if (not pointed-at)
       (set! index (modulo (+ index 1) (length colors))))
     (set! pointed-at #t)
     (set-background! (get-page this) (list-ref colors index)))
 
-  (When ((not-points-at ,?p ,this)
-         (gives-color ,?p #t)) do
+  (When ((?p not-points-at this)
+         (?p gives-color #t)) do
     (if pointed-at (set! pointed-at #f))))))
     </div>
     <p>Before we can talk about variables we have to address one thing: negation.

@@ -71,7 +71,7 @@ async function fetchAndCacheUrl(url) {
        Pages that are wikis retrieve a wikipedia page on the topic and project the first paragraph to their right.
        All &lt;a&gt; elements within that paragraph have their geometry asserted.</p>
     <div class=code>
-  (When ((wiki ,?p (,?x ,?y ,?w ,?topic))) do
+  (When ((?p wiki (?x ?y ?w ?topic))) do
     (let* ((text-div (make-element "div"))
            (table-div (get-element-by-id "table"))
            (p (make-element "p"))
@@ -96,10 +96,10 @@ async function fetchAndCacheUrl(url) {
     </div>
     <p>Page #1 is always declared as a wiki; the other pages are wikis when they point at a link, and their topic is the link's inner HTML text:</p>
     <div class=code>
-  (When ((points-at ,?p ,?link)
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?w))
+  (When ((?p points-at ?link)
+         (?p (page left) ?x)
+         (?p (page top) ?y)
+         (?p (page width) ?w))
    do (let ((topic (get-property ?link "innerHTML")))
         (set-background! ?link "hotpink")
         (Claim ?p 'wiki `(,?x ,?y ,?w ,topic))))

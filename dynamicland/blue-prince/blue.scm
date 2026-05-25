@@ -98,21 +98,21 @@
 
   ; claim solved state?
   ; i.e. forever, but conditional claims since our state will change
-  (When ((mora-jai ,this ,?sol)) do
+  (When ((this mora-jai ?sol)) do
     ; we know this runs each iteration at the start
     (set! pointed-at-prev pointed-at)
     (set! pointed-at #f)
     (Claim this 'was-pointed-at pointed-at-prev)
     (Claim this 'mora-jai-state (state-list)))
 
-  (When ((points-at ,?p ,?button)
-         (button ,?button (,this ,?x ,?y ,?color)))
+  (When ((?p points-at ?button)
+         (?button button (this ?x ?y ?color)))
    do (set! pointed-at #t))
 
-  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
+  (When ((?p wishes (this updates (?x ?y ?color)))) 
    do (hashtable-set! state (cons ?x ?y) ?color))
 
-  (When ((is-solved ,this #t))
+  (When ((this is-solved #t))
    do (set! solved #t))
 )))
 
@@ -126,19 +126,19 @@
 
   ; bug: not unpacking state leads to weird amounts of this rule executing
   ; perhaps depending on how many ways minikanren is able to reach this goal?
-  ;(When ((mora-jai-state ,?p ,?state)) do
+  ;(When ((mora-jai-state ?p ?state)) do
 
   ; todo: draw solution as a border around the box?
   ; claim-and-draw-button is lexically inside this When body so its Claim
   ; calls get rewritten to derived-claim! and the button facts live only for
   ; this fixpoint iteration (re-derived next tick from mora-jai-state).
-  (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
-                              (,?b1 ,?b2 ,?b3)
-                              (,?c1 ,?c2 ,?c3)))
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?w)
-         ((page height) ,?p ,?h))
+  (When ((?p mora-jai-state ((?a1 ?a2 ?a3)
+                              (?b1 ?b2 ?b3)
+                              (?c1 ?c2 ?c3)))
+         (?p (page left) ?x)
+         (?p (page top) ?y)
+         (?p (page width) ?w)
+         (?p (page height) ?h))
    do (define (claim-and-draw-button page cx cy w h color x y)
         (let* ((table-div (get-element-by-id "table"))
                (svg (query-selector table-div "svg"))
@@ -177,27 +177,27 @@
            (dy (- py qy)))
       (sqrt (+ (* dx dx) (* dy dy)))))
 
-  (When ((pointer-at ,?p (,?px . ,?py))
-         (button-div ,?div (,?mx . ,?my))) do
+  (When ((?p pointer-at (?px . ?py))
+         (?div button-div (?mx . ?my))) do
     (if (< (euclidian ?px ?py ?mx ?my) select-radius) (Claim ?p 'points-at ?div)))
 
   ; update the button color immediately
   ; note that get-property is defined to return an external ref to make this work
-  (When ((wishes ,?wisher (,?p updates (,?x ,?y ,?color)))
-         (button ,?button (,?p ,?x ,?y ,?old)))
+  (When ((?wisher wishes (?p updates (?x ?y ?color)))
+         (?button button (?p ?x ?y ?old)))
    do (set-property! (get-property ?button "style") "background" (color->string ?color)))
 
   ; note: solution is only found next iteration
   ; todo: if solution 'locks' the puzzle, is there still a race in evaluation?
   ; i.e. can an update trigger in between, locking the puzzle in an invalid state?
   ; todo: wish for p to be solved, and let p update its status + assert it each cycle?
-  (When ((mora-jai ,?p ,?sn)
-         (mora-jai-state ,?p ((,?sn ,?a2 ,?sn)
-                              (,?b1 ,?b2 ,?b3)
-                              (,?sn ,?c2 ,?sn))))
+  (When ((?p mora-jai ?sn)
+         (?p mora-jai-state ((?sn ?a2 ?sn)
+                              (?b1 ?b2 ?b3)
+                              (?sn ?c2 ?sn))))
    do (Claim ?p 'is-solved #t))
 
-  (When ((is-solved ,?p #t))
+  (When ((?p is-solved #t))
    do (set-background! (get-page this) "gold"))
 )))
 
@@ -206,26 +206,26 @@
   (Wish this 'has-whiskers #t)
 
 
-  (When ((wishes ,?p (,?p has-whiskers ,#t))) do
+  (When ((?p wishes (?p has-whiskers #t))) do
     (Claim ?p 'has-whiskers #t))
-  (When ((has-whiskers ,?p #t)) do
+  (When ((?p has-whiskers #t)) do
     (add-class! (get-page ?p) "whisker"))
 
-  (When ((has-whiskers ,?p #t)
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?width))
+  (When ((?p has-whiskers #t)
+         (?p (page left) ?x)
+         (?p (page top) ?y)
+         (?p (page width) ?width))
 	; TODO: angle?
    do (let* ((w (/ ?width 2))
              (px (+ ?x w))
              (py (- ?y 50)))
          (Claim ?p 'pointer-at (cons px py)) ))
 
-  (When ((pointer-at ,?p (,?px . ,?py))
-         ((page left) ,?q ,?qx)
-         ((page top) ,?q ,?qy)
-         ((page width) ,?q ,?qw)
-         ((page height) ,?q ,?qh))
+  (When ((?p pointer-at (?px . ?py))
+         (?q (page left) ?qx)
+         (?q (page top) ?qy)
+         (?q (page width) ?qw)
+         (?q (page height) ?qh))
 	; TODO: angle?
    do (if (and (> ?px ?qx)
                (< ?px (+ ?qx ?qw))
@@ -245,14 +245,14 @@
   (define (rotate page y x1 x2 x3)
     (wish-updates page `((1 ,y ,x3) (2 ,y ,x1) (3 ,y ,x2))))
 
-  ; todo: using ,?y instead of 1/2/3 again gives random amount of executions here when using ?color instead of black
+  ; todo: using ?y instead of 1/2/3 again gives random amount of executions here when using ?color instead of black
   ; we could duplicate Whens with hardcoded y instead of using cond
-  (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
-                              (,?b1 ,?b2 ,?b3)
-                              (,?c1 ,?c2 ,?c3)))
-         (points-at ,?page ,?button)
-         (was-pointed-at ,?p #f)
-         (button ,?button (,?p ,?x ,?y black)))
+  (When ((?p mora-jai-state ((?a1 ?a2 ?a3)
+                              (?b1 ?b2 ?b3)
+                              (?c1 ?c2 ?c3)))
+         (?page points-at ?button)
+         (?p was-pointed-at #f)
+         (?button button (?p ?x ?y black)))
    do (cond
         [(= ?y 1) (rotate ?p ?y ?a1 ?a2 ?a3)]
         [(= ?y 2) (rotate ?p ?y ?b1 ?b2 ?b3)]
@@ -266,12 +266,12 @@
       (Wish page 'updates update))
     updates))
 
-  (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
-                              (,?b1 ,?b2 ,?b3)
-                              (,?c1 ,?c2 ,?c3)))
-         (points-at ,?page ,?button)
-         (was-pointed-at ,?p #f)
-         (button ,?button (,?p ,?x ,?y green)))
+  (When ((?p mora-jai-state ((?a1 ?a2 ?a3)
+                              (?b1 ?b2 ?b3)
+                              (?c1 ?c2 ?c3)))
+         (?page points-at ?button)
+         (?p was-pointed-at #f)
+         (?button button (?p ?x ?y green)))
    do (cond
         [(and (= ?x 1) (= ?y 1))
            (wish-updates ?p `((3 3 green) (1 1 ,?c3)))]
@@ -298,12 +298,12 @@
       (Wish page 'updates update))
     updates))
 
-  (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
-                              (,?b1 ,?b2 ,?b3)
-                              (,?c1 ,?c2 ,?c3)))
-         (points-at ,?page ,?button)
-         (was-pointed-at ,?p #f)
-         (button ,?button (,?p ,?x ,?y yellow)))
+  (When ((?p mora-jai-state ((?a1 ?a2 ?a3)
+                              (?b1 ?b2 ?b3)
+                              (?c1 ?c2 ?c3)))
+         (?page points-at ?button)
+         (?p was-pointed-at #f)
+         (?button button (?p ?x ?y yellow)))
    do (cond
         [(and (= ?x 1) (= ?y 2))
            (wish-updates ?p `((1 1 yellow) (1 2 ,?a1)))]
@@ -342,12 +342,12 @@
     (let ((majority (majority-color? neighbours)))
       (if majority (wish-updates page `((,x ,y ,majority)) ))))
 
-  (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
-                              (,?b1 ,?b2 ,?b3)
-                              (,?c1 ,?c2 ,?c3)))
-         (points-at ,?page ,?button)
-         (was-pointed-at ,?p #f)
-         (button ,?button (,?p ,?x ,?y orange)))
+  (When ((?p mora-jai-state ((?a1 ?a2 ?a3)
+                              (?b1 ?b2 ?b3)
+                              (?c1 ?c2 ?c3)))
+         (?page points-at ?button)
+         (?p was-pointed-at #f)
+         (?button button (?p ?x ?y orange)))
    do (cond
         [(and (= ?x 1) (= ?y 1))
            (switch-if-majority ?p ?x ?y (list ?b1 ?a2))]
@@ -376,12 +376,12 @@
       (Wish page 'updates update))
     updates))
 
-  (When ((mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
-                              (,?b1 ,?b2 ,?b3)
-                              (,?c1 ,?c2 ,?c3)))
-         (points-at ,?page ,?button)
-         (was-pointed-at ,?p #f)
-         (button ,?button (,?p ,?x ,?y violet)))
+  (When ((?p mora-jai-state ((?a1 ?a2 ?a3)
+                              (?b1 ?b2 ?b3)
+                              (?c1 ?c2 ?c3)))
+         (?page points-at ?button)
+         (?p was-pointed-at #f)
+         (?button button (?p ?x ?y violet)))
    do (cond
         [(and (= ?x 1) (= ?y 1))
            (wish-updates ?p `((1 2 violet) (1 1 ,?b1)))]
@@ -430,21 +430,21 @@
                 (col-loop (+ x 1) (cons (hashtable-ref state (cons x y) #f) cols)))))))
 
   ; i.e. forever, but conditional claims since our state will change
-  (When ((mora-jai ,this ,?sol)) do
+  (When ((this mora-jai ?sol)) do
     ; we know this runs each iteration at the start
     (set! pointed-at-prev pointed-at)
     (set! pointed-at #f)
     (Claim this 'was-pointed-at pointed-at-prev)
     (Claim this 'mora-jai-state (state-list)))
 
-  (When ((points-at ,?p ,?button)
-         (button ,?button (,this ,?x ,?y ,?color)))
+  (When ((?p points-at ?button)
+         (?button button (this ?x ?y ?color)))
    do (set! pointed-at #t))
 
-  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
+  (When ((?p wishes (this updates (?x ?y ?color)))) 
    do (hashtable-set! state (cons ?x ?y) ?color))
 
-  (When ((is-solved ,this #t))
+  (When ((this is-solved #t))
    do (set! solved #t))
 )))
 
@@ -481,21 +481,21 @@
                 (col-loop (+ x 1) (cons (hashtable-ref state (cons x y) #f) cols)))))))
 
   ; i.e. forever, but conditional claims since our state will change
-  (When ((mora-jai ,this ,?sol)) do
+  (When ((this mora-jai ?sol)) do
     ; we know this runs each iteration at the start
     (set! pointed-at-prev pointed-at)
     (set! pointed-at #f)
     (Claim this 'was-pointed-at pointed-at-prev)
     (Claim this 'mora-jai-state (state-list)))
 
-  (When ((points-at ,?p ,?button)
-         (button ,?button (,this ,?x ,?y ,?color)))
+  (When ((?p points-at ?button)
+         (?button button (this ?x ?y ?color)))
    do (set! pointed-at #t))
 
-  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
+  (When ((?p wishes (this updates (?x ?y ?color)))) 
    do (hashtable-set! state (cons ?x ?y) ?color))
 
-  (When ((is-solved ,this #t))
+  (When ((this is-solved #t))
    do (set! solved #t))
 )))
 
@@ -532,21 +532,21 @@
                 (col-loop (+ x 1) (cons (hashtable-ref state (cons x y) #f) cols)))))))
 
   ; i.e. forever, but conditional claims since our state will change
-  (When ((mora-jai ,this ,?sol)) do
+  (When ((this mora-jai ?sol)) do
     ; we know this runs each iteration at the start
     (set! pointed-at-prev pointed-at)
     (set! pointed-at #f)
     (Claim this 'was-pointed-at pointed-at-prev)
     (Claim this 'mora-jai-state (state-list)))
 
-  (When ((points-at ,?p ,?button)
-         (button ,?button (,this ,?x ,?y ,?color)))
+  (When ((?p points-at ?button)
+         (?button button (this ?x ?y ?color)))
    do (set! pointed-at #t))
 
-  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
+  (When ((?p wishes (this updates (?x ?y ?color)))) 
    do (hashtable-set! state (cons ?x ?y) ?color))
 
-  (When ((is-solved ,this #t))
+  (When ((this is-solved #t))
    do (set! solved #t))
 )))
 

@@ -34,12 +34,12 @@
     (Wish page 'updates `(2 ,y ,x1))
     (Wish page 'updates `(3 ,y ,x2)))
 
-  (When ((points-at ,?pointer ,?button)
-         (was-pointed-at ,?p #f)
-         (button ,?button (,?p ,?x ,?y black))
-         (mora-jai-state ,?p ((,?a1 ,?a2 ,?a3)
-                              (,?b1 ,?b2 ,?b3)
-                              (,?c1 ,?c2 ,?c3))))
+  (When ((?pointer points-at ?button)
+         (?p was-pointed-at #f)
+         (?button button (?p ?x ?y black))
+         (?p mora-jai-state ((?a1 ?a2 ?a3)
+                             (?b1 ?b2 ?b3)
+                             (?c1 ?c2 ?c3))))
    do (cond
         [(= ?y 1) (rotate ?p ?y ?a1 ?a2 ?a3)]
         [(= ?y 2) (rotate ?p ?y ?b1 ?b2 ?b3)]
@@ -65,17 +65,17 @@
   (define pointed-at-prev #f)
   (define state (make-hashtable))
 
-  (When ((mora-jai ,this ,?sol)) do
+  (When ((this mora-jai ?sol)) do
     (set! pointed-at-prev pointed-at)
     (set! pointed-at #f)
     (Claim this 'was-pointed-at pointed-at-prev)
     (Claim this 'mora-jai-state (state-list)))
 
-  (When ((points-at ,?p ,?button)
-         (button ,?button (,this ,?x ,?y ,?color)))
+  (When ((?p points-at ?button)
+         (?button button (this ?x ?y ?color)))
    do (set! pointed-at #t))
 
-  (When ((wishes ,?p (,this updates (,?x ,?y ,?color)))) 
+  (When ((?p wishes (this updates (?x ?y ?color)))) 
    do (hashtable-set! state (cons ?x ?y) ?color))
 
   ; not shown: initialise state from init on page load,

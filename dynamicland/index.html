@@ -28,9 +28,9 @@
     <div class=code>(Claim this 'highlighted "yellow")</div>
     <h3>Page 2:</h3>
     <div class=code>
-  (When ((highlighted ,?p ,?color)
-         ((page left) ,this ,?thisleft)
-         ((page left) ,?p ,?thatleft))
+  (When ((?p highlighted ?color)
+         (this (page left) ?thisleft)
+         (?p (page left) ?thatleft))
    do (if (and (< ?thisleft ?thatleft)
                (< 100 (- ?thatleft ?thisleft)))
         (set-background! (get-page ?p) ?color))))))

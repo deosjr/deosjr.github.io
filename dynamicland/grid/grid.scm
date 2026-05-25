@@ -45,10 +45,10 @@
   ; but at least doesnt create ~10 svg paths each iteration now
   ; the actual fix is bumping the hash recursion value in (hoot hashtables)
   (define m #f)
-  (When ((time now ,?t)) do
+  (When ((time now ?t)) do
     (set! m (make-hashtable hash equal?)))
 
-  (When ((wishes ,?p (,?p points-drawn (,?points ,?color)))) do
+  (When ((?p wishes (?p points-drawn (?points ?color)))) do
     (let ((pstr (format #f "~a" ?points)))
     (if (not (hashtable-ref m pstr #f)) (begin
       (hashtable-set! m pstr #t)
@@ -81,14 +81,14 @@
     (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,this points-drawn (,p ,color))) #t)
     (Wish this 'points-drawn `(,p ,color)))
 
-  (When ((production-total-mw ,?grid ,?mw)) do
+  (When ((?grid production-total-mw ?mw)) do
     ; max is 300, we want 0 to be down
     (let ((data (add-data-point production (- 330 ?mw))))
       (set! production data)
       (wish-points-drawn (points data) "green")))
 
   ; todo: for now we assume a single consumer
-  (When ((consumes ,?village ,?mw)) do
+  (When ((?village consumes ?mw)) do
     ; max is 300, we want 0 to be down
     (let ((data (add-data-point consumption (- 330 ?mw))))
       (set! consumption data)
@@ -116,7 +116,7 @@
     (hashtable-set! (datalog-idb (get-dl)) `(,this wishes (,this points-drawn (,p ,color))) #t)
     (Wish this 'points-drawn `(,p ,color)))
 
-  (When ((grid-frequency ,?grid ,?hz)) do
+  (When ((?grid grid-frequency ?hz)) do
     (let* ((freq (inexact->exact (round (* 100 ?hz))))
            (data (add-data-point frequency (- 5300 freq))))
       (set! frequency data)
@@ -137,7 +137,7 @@
   ; consumes MW variable over time
   ; todo: t is in millis and jumps per ~100 or so, making this look weird
   ; but thats mostly fine, we just want some random variation
-  (When ((time now ,?t)) do
+  (When ((time now ?t)) do
     (Claim this 'consumes (inexact->exact (round (+ 300 (* 20 (sin (* 0.1 ?t))))))))
 )))
 
@@ -154,7 +154,7 @@
   (define consumptionTotalMW 0)
 
   ; we start this rule with production/consumption summed in previous iteration
-  (When ((time now ,?t)) do
+  (When ((time now ?t)) do
     (Claim this 'production-total-mw productionTotalMW)
     (calculate-frequency-deviation)
     (Claim this 'grid-frequency freq)
@@ -171,14 +171,14 @@
 
   ; using the wish guarantees claiming previous productionTotal goes first
   ; then productionTotal is reset to 0 and all wishes add up 
-  (When ((generates ,?g ,?MW)) do
+  (When ((?g generates ?MW)) do
     (Wish this 'updates-production-mw `(,?g ,?MW)))
 
   ; we have to claim ?g though we dont use it so wishes are unique!
-  (When ((wishes ,this (,this updates-production-mw (,?g ,?MW)))) do
+  (When ((this wishes (this updates-production-mw (?g ?MW)))) do
     (set! productionTotalMW (+ productionTotalMW ?MW)))
 
-  (When ((consumes ,?v ,?mw)) do
+  (When ((?v consumes ?mw)) do
     (set! consumptionTotalMW ?mw))
 
 )))

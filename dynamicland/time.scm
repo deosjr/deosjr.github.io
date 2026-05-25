@@ -67,7 +67,7 @@
       (set! data (cons x data))
       (set! data (cons x (reverse (cdr (reverse data)))))))
 
-  (When ((time now ,?t)) do
+  (When ((time now ?t)) do
     (if (< interval (- ?t t)) (begin
       (set! deg (modulo (+ deg step) 360))
       (let ((rad (* (/ deg 180) pi)))
@@ -122,7 +122,7 @@
       (set! data (cons x data))
       (set! data (cons x (reverse (cdr (reverse data)))))))
 
-  (When ((time now ,?t)) do
+  (When ((time now ?t)) do
     (if (< interval (- ?t t)) (begin
       (set! deg (modulo (+ deg step) 360))
       (let ((rad (* (/ deg 180) pi)))

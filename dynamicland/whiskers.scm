@@ -24,16 +24,16 @@
 (define page1 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
   ; declare what happens when pointing at a page, ie maybe color it
-  (When ((points-at ,this ,?p)) do (set-background! (get-page ?p) "limegreen"))
+  (When ((this points-at ?p)) do (set-background! (get-page ?p) "limegreen"))
 )))
 
 (define page2 (add-page (make-page-code
   ; fulfill a page's wish to have whiskers
-  (When ((wishes ,?p (,?p has-whiskers ,#t))) do
+  (When ((?p wishes (?p has-whiskers #t))) do
     (Claim ?p 'has-whiskers #t))
 
   ; declare how to 'draw' whiskers ie add css class
-  (When ((has-whiskers ,?p #t)) do
+  (When ((?p has-whiskers #t)) do
     (add-class! (get-page ?p) "whisker"))
 )))
 
@@ -41,10 +41,10 @@
   ; declare what it means to point at smth
   ; makes a hard assumption on styling, i.e. whiskers extend for 50px
 
-  (When ((has-whiskers ,?p #t)
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?width))
+  (When ((?p has-whiskers #t)
+         (?p (page left) ?x)
+         (?p (page top) ?y)
+         (?p (page width) ?width))
 	; TODO: angle?
    do (let* ((w (/ ?width 2))
              (px (+ ?x w))
@@ -52,11 +52,11 @@
          (Claim ?p 'pointer-at (cons px py)) ))
 
   ; NOTE: this fires for every page, since we can't calculate in the db atm!
-  (When ((pointer-at ,?p ,?point)
-         ((page left) ,?q ,?qx)
-         ((page top) ,?q ,?qy)
-         ((page width) ,?q ,?qw)
-         ((page height) ,?q ,?qh))
+  (When ((?p pointer-at ?point)
+         (?q (page left) ?qx)
+         (?q (page top) ?qy)
+         (?q (page width) ?qw)
+         (?q (page height) ?qh))
 	; TODO: angle?
    do (let ((px (car ?point))
             (py (cdr ?point)))
@@ -77,10 +77,10 @@
 ; because printing text will have happened before it?
 (define page4 (add-page (make-page-code
   (Wish this 'has-whiskers #t)
-  (When ((points-at ,this ,?p)
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?w))
+  (When ((this points-at ?p)
+         (?p (page left) ?x)
+         (?p (page top) ?y)
+         (?p (page width) ?w))
    do (let* ((dl (get-dl))
              (idx (datalog-idx-entity dl))
              (facts (hashtable-keys (hashtable-ref idx ?p #f)))
@@ -111,19 +111,19 @@
     (let* ((substr (substring str 0 (- (string-length str) 2))))
       (string->number substr)))
 
-  (When ((wishes ,?p (,?p has-whiskers ,#t))) do
+  (When ((?p wishes (?p has-whiskers #t))) do
     (Claim ?p 'has-whiskers #t))
 
   ; page rotates around midpoint: from there to whisker end, add halfh + whisker length
   ; todo: we could be using DOMMatrix.transformPoint instead?
   ; todo: page left/top/width/height are based on bounding box (axis aligned)?
   ; all of this logic becomes easier here if we do some of the calculations in modules/realtalk
-  (When ((has-whiskers ,?p #t)
-         ((page left) ,?p ,?x)
-         ((page top) ,?p ,?y)
-         ((page width) ,?p ,?width)
-         ((page height) ,?p ,?height)
-         ((page rotation) ,?p ,?degrees))
+  (When ((?p has-whiskers #t)
+         (?p (page left) ?x)
+         (?p (page top) ?y)
+         (?p (page width) ?width)
+         (?p (page height) ?height)
+         (?p (page rotation) ?degrees))
    do (let* ((table-div (get-element-by-id "table"))
              (table-rect (get-bounding-client-rect table-div))
              (tw (get-width table-rect))
@@ -152,13 +152,13 @@
 
   ; NOTE: this fires for every page, since we can't calculate in the db atm!
   ; todo: rotated page now checks bounding box, not actual div dimensions
-  (When ((pointer-at ,?p ,?point)
-         ((page left) ,?q ,?qx)
-         ((page top) ,?q ,?qy)
-         ((page width) ,?q ,?qw)
-         ((page height) ,?q ,?qh)
+  (When ((?p pointer-at ?point)
+         (?q (page left) ?qx)
+         (?q (page top) ?qy)
+         (?q (page width) ?qw)
+         (?q (page height) ?qh)
 	; TODO: angle of targeted page?
-         ((page rotation) ,?q ,?qr))
+         (?q (page rotation) ?qr))
    do (let ((px (car ?point))
             (py (cdr ?point)))
         (if (and (> px ?qx)
