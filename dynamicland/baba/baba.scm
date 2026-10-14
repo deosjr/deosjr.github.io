@@ -199,6 +199,16 @@
     "R=.F.w..."
     "W=S..wF=!")))
 
+; Push a whole line of things at once to finish FLAG IS WIN. Mind where you step afterwards.
+(define push-it-along (level-page
+  '("W=S...F.."
+    ".wwwww=w."
+    "b.rr!...."
+    ".wwwww.w."
+    "........."
+    "...B=Y..."
+    "R=P....f.")))
+
 ; Baba cannot reach the flag, but something else could.
 (define rock-is-you (level-page
   '("B=Y..w..."
@@ -319,16 +329,22 @@
       (define (inside? p)
         (and (>= (car p) 0) (< (car p) (car size))
              (>= (cdr p) 0) (< (cdr p) (cdr size))))
+      ; Pushes are transitive: something can only move if everything pushable in front of it
+      ; can move too, all the way down the line, and then the whole line moves together.
       (define (blocked? i)
         (let ((t (add (pos i) d)))
           (or (not (inside? t))
               (any? (lambda (j) (and (has? j 'stop) (not (has? j 'push)))) (at t))
               (any? blocked? (keep (lambda (j) (has? j 'push)) (at t))))))
+      ; everything moves at most one step per turn, so something that is both YOU and PUSH
+      ; does not move again by itself after being pushed by something else that is YOU
+      (define moved '())
       (define (move! i)
         (let ((t (add (pos i) d)))
           (for-each move! (keep (lambda (j) (has? j 'push)) (at t)))
-          (vector-set! v i (list (kind i) t))))
-      (for-each (lambda (i) (if (not (blocked? i)) (move! i)))
+          (vector-set! v i (list (kind i) t))
+          (set! moved (cons i moved))))
+      (for-each (lambda (i) (if (not (or (memv i moved) (blocked? i))) (move! i)))
                 (keep (lambda (i) (has? i 'you)) (indices n)))
       (vector->list v)))
 
@@ -348,6 +364,14 @@
          (?level baba-objects ?objects)
          (?level baba-rules ?rules))
    do (if (won? ?objects ?rules) (Wish ?level 'solved #t)))
+
+  ; Nothing to control: no rule makes anything YOU, or nothing of that kind is left.
+  ; Moves still go through but do nothing; undo and reset go straight to the level page.
+  (When ((?level baba-phase ready)
+         (?level baba-objects ?objects)
+         (?level baba-rules ?rules))
+   do (if (not (any? (lambda (obj) (is? (car obj) 'you ?rules)) ?objects))
+          (Claim ?level 'baba-no-you #t)))
 )))
 
 ; Draws every level on the table, to the right of its page, one object at a time.
@@ -438,6 +462,18 @@
                       ("y" . ,(num (+ (cell-y ?y ?w (cons 0 ?rows)) 16)))
                       ("style" . "font: 14px sans-serif")))))
         (set-inner-html! text (format #f "moves: ~a" ?moves))))
+
+  (When ((?level baba-no-you #t)
+         (?level baba-size (?columns . ?rows))
+         (?level (page left) ?x)
+         (?level (page top) ?y)
+         (?level (page width) ?w))
+   do (let ((text (svg-element! "text"
+                    `(("x" . ,(num (cell-x ?x ?w '(0 . 0))))
+                      ("y" . ,(num (+ (cell-y ?y ?w (cons 0 ?rows)) 34)))
+                      ("fill" . "crimson")
+                      ("style" . "font: 14px sans-serif")))))
+        (set-inner-html! text "nothing is YOU: press u to undo, or r to reset")))
 
   (When ((?level baba-solved #t))
    do (set-background! (get-page ?level) "gold"))
@@ -539,5 +575,6 @@
 (place! wall-is-win more-pages "wall is win" "23vw")
 (place! rock-is-you more-pages "rock is you" "31vw")
 (place! rock-is-flag more-pages "rock is flag" "39vw")
+(place! push-it-along more-pages "push it along" "47vw")
 
 (recalculate-pages)
