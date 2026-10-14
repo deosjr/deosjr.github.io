@@ -33,10 +33,14 @@ live: live.scm
 blue: blue-prince/blue.scm
 	$(COMPILE) -o blue-prince/blue.wasm blue-prince/blue.scm
 
+.PHONY: sokoban
+sokoban: sokoban/sokoban.scm
+	$(COMPILE) -o sokoban/sokoban.wasm sokoban/sokoban.scm
+
 energy: grid/grid.scm
 	$(COMPILE) -o grid/grid.wasm grid/grid.scm
 
 serve:
 	@python3 -m http.server
 
-run: dynamicland datalog whiskers variables wiki keyboard blue energy live serve
+run: dynamicland datalog whiskers variables wiki keyboard blue sokoban energy live serve

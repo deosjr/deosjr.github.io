@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="../reflect.js"></script>
+    <script type="text/javascript" src="sokoban.js"></script>
+    <link rel="stylesheet" href="../style.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  </head>
+  <body>
+    <main>
+    <p id="wasm-error" hidden="true">
+      A browser with Wasm GC and tail call support is required for
+      this demo.  We recommend using either Mozilla Firefox or Google
+      Chrome.
+    </p>
+    <h2>Sokoban</h2>
+    <p>Put a level, the rules, the projector and a set of controls on the table.
+       Then point the keyboard at the level using its whisker (the whiskers page hands them out) and push the boxes onto the goals.</p>
+    <div id=pages class="pages"></div>
+    <div id=more-pages class="pages"></div>
+    <div id=table class="table" style="height:60vh; width:60vw;"></div>
+    <p>The wasd page moves with w/a/s/d, the hjkl page with h/j/k/l. Both use u to undo and r to reset.
+       Lifting a level off the table and putting it back also resets it, since its page code runs again from scratch.
+       Once a level is solved it stops listening to keys altogether; lifting it off the table is the only way to play it again.
+       Avoid q and e: they rotate the page under the mouse.</p>
+    <p>Each part of the game lives on its own page and only talks to the others through claims and wishes.
+       A level page keeps its board as a string and claims it once per tick.
+       The rules page answers a wish to move with a wish to set the board to its next state.
+       The projector draws any level it sees, and the controls page translates key presses into move wishes on whatever the keyboard points at.
+       Take the rules page off the table and the levels freeze; take the projector off and they keep working, unseen.</p>
+    </main>
+  </body>
+</html>
