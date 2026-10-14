@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="../reflect.js"></script>
+    <script type="text/javascript" src="baba.js"></script>
+    <link rel="stylesheet" href="../style.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  </head>
+  <body>
+    <main>
+    <p id="wasm-error" hidden="true">
+      A browser with Wasm GC and tail call support is required for
+      this demo.  We recommend using either Mozilla Firefox or Google
+      Chrome.
+    </p>
+    <h2>Baba Is You</h2>
+    <p>Put a level, the words, grammar, physics and projector pages and the wasd controls on the table.
+       Then point the keyboard at the level using its whisker (the whiskers page hands them out) and find a way to win.</p>
+    <div id=pages class="pages"></div>
+    <div id=more-pages class="pages"></div>
+    <div id=table class="table" style="height:60vh; width:60vw;"></div>
+    <p>Move with w/a/s/d, undo with u and reset with r.
+       Once a level is solved it stops listening to keys; lifting it off the table resets it.
+       Avoid q and e: they rotate the page under the mouse.</p>
+    <p>This started as a copy of the <a href="../sokoban/index.html">Sokoban</a> pages, with the rules page swapped out.
+       In Baba Is You the rules of the game are objects on the board: text tiles that form statements like BABA IS YOU or WALL IS STOP.
+       Push the text around and the rules change.</p>
+    <p>The words page claims what each word is: BABA is a noun, IS is a verb, YOU is a property.
+       The grammar page has one generic rule: every verb claims the two rows of three it sits in the middle of, horizontally and vertically.
+       A second rule checks whether such a row reads noun-verb-property, and if so claims it as a rule of the level, like (baba is you).
+       The physics page decides what those rules mean: YOU moves, STOP blocks, PUSH gets pushed, and YOU touching WIN wins.</p>
+    <p>Moving needs every active rule at once, but rules are derived one by one during a tick.
+       So a level collects the rules claimed about it during one tick and claims them as a single list the next, as long as nothing changed in between.
+       Moves wait until the rules have settled.</p>
+    </main>
+  </body>
+</html>

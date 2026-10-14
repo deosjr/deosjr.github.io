@@ -37,10 +37,14 @@ blue: blue-prince/blue.scm
 sokoban: sokoban/sokoban.scm
 	$(COMPILE) -o sokoban/sokoban.wasm sokoban/sokoban.scm
 
+.PHONY: baba
+baba: baba/baba.scm
+	$(COMPILE) -o baba/baba.wasm baba/baba.scm
+
 energy: grid/grid.scm
 	$(COMPILE) -o grid/grid.wasm grid/grid.scm
 
 serve:
 	@python3 -m http.server
 
-run: dynamicland datalog whiskers variables wiki keyboard blue sokoban energy live serve
+run: dynamicland datalog whiskers variables wiki keyboard blue sokoban baba energy live serve
