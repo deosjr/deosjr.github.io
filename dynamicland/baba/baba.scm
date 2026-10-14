@@ -22,8 +22,9 @@
 ; - level pages keep their own state (a list of objects) and claim each object as a fact
 ; - the words page says which words are nouns, verbs and properties
 ; - the grammar page lets every verb claim the rows of three it sits in the middle of,
-;   and turns rows that read noun-verb-property into rules like (baba is you)
-; - the physics page moves whatever is YOU, and decides when a level is won
+;   and turns rows that read noun-verb-property or noun-verb-noun into rules like
+;   (baba is you property) or (rock is flag noun)
+; - the physics page moves whatever is YOU, transforms things, and decides when a level is won
 ; - the projector page draws any level it can see
 ; - a controls page turns key presses into move wishes on whatever level the keyboard points at
 ;
@@ -39,12 +40,18 @@
 ;   (level baba-text (word pos))         each tick, one per text tile
 ;   (level baba-moves n)                 each tick
 ;   (level baba-rules (rule ...))        each tick, but only once the rules have settled (see below)
+;   (level baba-phase phase)             alongside baba-rules: transform or ready
 ;
 ; Moving needs the complete set of rules, but datalog cannot collect facts into a list,
 ; and rules are derived at some point during a tick. So the level page collects every rule
 ; claimed about it during a tick, and publishes them as one list the next tick, but only
 ; if its state did not change in between. Moves wait in a queue until the rules are settled.
 ; This is the same collect-now, claim-next-tick trick as was-pointed-at in the Mora-Jai puzzles.
+;
+; Transformations (ROCK IS FLAG) happen once after every move, before anything else.
+; Datalog has no notion of order, so the level page makes it explicit with a phase:
+; after a move it claims phase transform, physics answers with the transformed objects,
+; and only then does the phase become ready, when moves are taken and wins are checked.
 
 (define pages (get-element-by-id "pages"))
 (define more-pages (get-element-by-id "more-pages"))
@@ -85,6 +92,12 @@
     ; rules claimed about this level so far this tick, and the version they were derived from
     (define rules '())
     (define rules-version -1)
+    ; After a move (or a reset), transformations like ROCK IS FLAG get one chance to apply
+    ; before anything else happens: the phase is 'transform until physics has answered,
+    ; then 'ready, when moves are taken and the level can be won.
+    ; Applying them only once per move means ROCK IS FLAG plus FLAG IS ROCK swaps them once,
+    ; instead of flipping back and forth every tick.
+    (define phase 'transform)
 
     (define (change! next)
       (set! objects next)
@@ -110,7 +123,9 @@
         (if (and settled (not solved))
             (begin
               (Claim this 'baba-rules settled-rules)
-              (if (pair? pending) (Claim this 'baba-move (car pending)))))))
+              (Claim this 'baba-phase phase)
+              (if (and (eq? phase 'ready) (pair? pending))
+                  (Claim this 'baba-move (car pending)))))))
 
     (When ((this baba-rule ?rule)) do
       (set! rules (cons ?rule rules)))
@@ -125,22 +140,34 @@
             (set! pending (cdr pending))
             (if (not (equal? ?next objects))
                 (begin (set! history (cons objects history))
-                       (change! ?next))))))
+                       (change! ?next)
+                       (set! phase 'transform))))))
+
+    ; the answer to a baba-phase transform claim; next may be unchanged if nothing transforms.
+    ; Not a separate step in the history: undo goes back to before the move that caused it.
+    (When ((?p wishes (this transform ?next))) do
+      (if (and (not solved) (eq? phase 'transform))
+          (begin
+            (if (not (equal? ?next objects)) (change! ?next))
+            (set! phase 'ready))))
 
     (When ((?p wishes (this solved #t))) do
       (set! solved #t))
 
+    ; history only holds states that were already transformed, so no need to do it again
     (When ((?p wishes (this undo #t))) do
       (if (and (not solved) (pair? history))
           (begin (change! (car history))
                  (set! history (cdr history))
-                 (set! pending '()))))
+                 (set! pending '())
+                 (set! phase 'ready))))
 
     (When ((?p wishes (this reset #t))) do
       (if (not solved)
           (begin (change! init)
                  (set! history '())
-                 (set! pending '())))))))
+                 (set! pending '())
+                 (set! phase 'transform)))))))
 
 ; Break WALL IS STOP to get to the flag.
 (define wall-is-stop (level-page
@@ -161,6 +188,16 @@
     "...!....."
     ".b......."
     "B=Y......")))
+
+; The flag is out of reach, but maybe something else could be a flag.
+(define rock-is-flag (level-page
+  '("B=Y..w..."
+    ".....w..."
+    "..r..w.f."
+    ".....w..."
+    ".b...w..."
+    "R=.F.w..."
+    "W=S..wF=!")))
 
 ; Baba cannot reach the flag, but something else could.
 (define rock-is-you (level-page
@@ -189,22 +226,27 @@
         (Claim ?level 'baba-row (list (cons (- x 1) y) ?pos (cons (+ x 1) y)))
         (Claim ?level 'baba-row (list (cons x (- y 1)) ?pos (cons x (+ y 1))))))
 
-  ; A row that reads noun-verb-property is a rule.
+  ; A row that reads noun-verb-noun or noun-verb-property is a rule, like (baba is you property)
+  ; or (rock is flag noun). The rule carries the word class of its complement, so that pages
+  ; acting on rules can tell ROCK IS FLAG from ROCK IS PUSH without the words page.
   (When ((?level baba-row (?first ?middle ?last))
          (?level baba-text (?subject ?first))
          (?subject word-class noun)
          (?level baba-text (?verb ?middle))
          (?verb word-class verb)
-         (?level baba-text (?property ?last))
-         (?property word-class property))
-   do (Claim ?level 'baba-rule (list ?subject ?verb ?property))
-      (Claim ?level 'baba-active-text ?first)
-      (Claim ?level 'baba-active-text ?middle)
-      (Claim ?level 'baba-active-text ?last))
+         (?level baba-text (?complement ?last))
+         (?complement word-class ?class))
+   do (if (memq ?class '(noun property))
+          (begin
+            (Claim ?level 'baba-rule (list ?subject ?verb ?complement ?class))
+            (Claim ?level 'baba-active-text ?first)
+            (Claim ?level 'baba-active-text ?middle)
+            (Claim ?level 'baba-active-text ?last))))
 )))
 
 ; What the rules do: YOU moves, STOP blocks, PUSH (and all text) gets pushed,
-; and a level is won when something that is YOU shares a cell with something that is WIN.
+; X IS Y turns every X into a Y, and a level is won when something that is YOU
+; shares a cell with something that is WIN.
 (define physics (add-page (make-page-code
   (define (offset dir)
     (case dir
@@ -233,7 +275,28 @@
   (define (is? kind property rules)
     (if (pair? kind)
         (eq? property 'push)
-        (member (list kind 'is property) rules)))
+        (member (list kind 'is property 'property) rules)))
+
+  ; the nouns that kind turns into, from rules like (rock is flag noun)
+  (define (targets kind rules)
+    (map (lambda (rule) (list-ref rule 2))
+         (keep (lambda (rule)
+                 (and (eq? (list-ref rule 0) kind)
+                      (eq? (list-ref rule 1) 'is)
+                      (eq? (list-ref rule 3) 'noun)))
+               rules)))
+
+  ; Every thing of kind X becomes Y for each X IS Y; with several targets it becomes all of them.
+  ; X IS X keeps X from transforming at all. Text never transforms.
+  (define (transform objects rules)
+    (apply append
+      (map (lambda (obj)
+             (let* ((kind (car obj))
+                    (into (if (pair? kind) '() (targets kind rules))))
+               (if (or (null? into) (memq kind into))
+                   (list obj)
+                   (map (lambda (k) (list k (cadr obj))) into))))
+           objects)))
 
   (define (won? objects rules)
     (any? (lambda (you)
@@ -276,7 +339,13 @@
    do (if (not (won? ?objects ?rules))
           (Wish ?level 'set-state (step ?objects ?size ?rules ?dir))))
 
-  (When ((?level baba-objects ?objects)
+  (When ((?level baba-phase transform)
+         (?level baba-objects ?objects)
+         (?level baba-rules ?rules))
+   do (Wish ?level 'transform (transform ?objects ?rules)))
+
+  (When ((?level baba-phase ready)
+         (?level baba-objects ?objects)
          (?level baba-rules ?rules))
    do (if (won? ?objects ?rules) (Wish ?level 'solved #t)))
 )))
@@ -469,5 +538,6 @@
 (place! wall-is-stop more-pages "wall is stop" "15vw")
 (place! wall-is-win more-pages "wall is win" "23vw")
 (place! rock-is-you more-pages "rock is you" "31vw")
+(place! rock-is-flag more-pages "rock is flag" "39vw")
 
 (recalculate-pages)

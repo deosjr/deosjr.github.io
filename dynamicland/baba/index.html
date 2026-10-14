@@ -27,11 +27,12 @@
        Push the text around and the rules change.</p>
     <p>The words page claims what each word is: BABA is a noun, IS is a verb, YOU is a property.
        The grammar page has one generic rule: every verb claims the two rows of three it sits in the middle of, horizontally and vertically.
-       A second rule checks whether such a row reads noun-verb-property, and if so claims it as a rule of the level, like (baba is you).
-       The physics page decides what those rules mean: YOU moves, STOP blocks, PUSH gets pushed, and YOU touching WIN wins.</p>
+       A second rule checks whether such a row reads noun-verb-property or noun-verb-noun, and if so claims it as a rule of the level, like (baba is you property) or (rock is flag noun).
+       The physics page decides what those rules mean: YOU moves, STOP blocks, PUSH gets pushed, ROCK IS FLAG turns every rock into a flag, and YOU touching WIN wins.</p>
     <p>Moving needs every active rule at once, but rules are derived one by one during a tick.
        So a level collects the rules claimed about it during one tick and claims them as a single list the next, as long as nothing changed in between.
-       Moves wait until the rules have settled.</p>
+       Moves wait until the rules have settled.
+       Transformations happen once after every move, before anything else, so a level also steps through two phases: transform, then ready.</p>
     </main>
   </body>
 </html>
