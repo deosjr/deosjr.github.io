@@ -17,19 +17,23 @@
 (make-dynamic)
 
 ; Sokoban, split across pages the same way as the Mora-Jai puzzles:
-; - level pages keep their own state (the board) and claim a snapshot of it each tick
+; - level pages keep their own state (player and boxes) and claim a snapshot of it each tick
 ; - the rules page turns 'move' wishes into 'set-state' wishes, and decides when a level is solved
 ; - the projector page draws any level it can see
 ; - controls pages turn key presses into wishes on whatever level the keyboard points at
 ;
-; Boards are strings in the usual Sokoban text format, rows separated by newlines:
+; Levels are written in the usual Sokoban text format:
 ;   # wall   @ player   $ box   . goal   + player on goal   * box on goal
-; A string is a single datalog value, so we sidestep the issues with matching on nested lists.
-; Note that minikanren unifies atoms with eqv?, so boards can only be bound in When conditions,
-; never matched against a literal.
+; but a level page parses that into positions (x . y) when it first lands on the table.
+; Nothing else sees the text. Each level claims:
+;   (level sokoban-walls (pos ...))   static, claimed once
+;   (level sokoban-goals (pos ...))   static, claimed once
+;   (level sokoban-player pos)        each tick
+;   (level sokoban-boxes (pos ...))   each tick
+;   (level sokoban-moves n)           each tick
 ;
-; Timing: a level claims its board once per tick, in a When that only depends on its own claim.
-; A move wish updates the board locally, which becomes visible to other pages next tick.
+; Timing: a level claims its state once per tick, in a When that only depends on its own claim.
+; A move wish updates the state locally, which becomes visible to other pages next tick.
 ; Keys are claimed for exactly one tick, so one key press is exactly one move.
 
 (define pages (get-element-by-id "pages"))
@@ -39,51 +43,68 @@
 ; In Dynamicland you would print copies of one page with a different board on each.
 (define (level-page rows)
   (add-page (make-page-code
-    (define (pad row width)
-      (string-append row (make-string (- width (string-length row)) #\space)))
-    (define (rows->board rows)
-      (let* ((width (apply max (map string-length rows)))
-             (padded (map (lambda (row) (pad row width)) rows)))
-        (let loop ((rest (cdr padded)) (acc (car padded)))
-          (if (null? rest) acc
-              (loop (cdr rest) (string-append acc "\n" (car rest)))))))
+    (define walls '())
+    (define goals '())
+    (define init-boxes '())
+    (define init-player #f)
 
-    (define init (rows->board rows))
-    (define board init)
+    (let loop-rows ((rows rows) (y 0))
+      (when (pair? rows)
+        (let loop-cols ((cs (string->list (car rows))) (x 0))
+          (when (pair? cs)
+            (let ((pos (cons x y))
+                  (c (car cs)))
+              (if (char=? c #\#) (set! walls (cons pos walls)))
+              (if (memv c '(#\. #\+ #\*)) (set! goals (cons pos goals)))
+              (if (memv c '(#\$ #\*)) (set! init-boxes (cons pos init-boxes)))
+              (if (memv c '(#\@ #\+)) (set! init-player pos)))
+            (loop-cols (cdr cs) (+ x 1))))
+        (loop-rows (cdr rows) (+ y 1))))
+
+    (define player init-player)
+    (define boxes init-boxes)
+    ; previous (player boxes) states, most recent first
     (define history '())
     ; once solved, the level ignores all wishes until it is taken off the table,
     ; which runs this page code again from scratch
     (define solved #f)
 
-    (define (accept! new)
-      (set! history (cons board history))
-      (set! board new))
+    ; next is a (player boxes) list
+    (define (accept! next)
+      (set! history (cons (list player boxes) history))
+      (set! player (car next))
+      (set! boxes (cadr next)))
 
     (Claim this 'sokoban-level #t)
+    (Claim this 'sokoban-walls walls)
+    (Claim this 'sokoban-goals goals)
 
     (When ((this sokoban-level #t)) do
-      (Claim this 'sokoban-state board)
+      (Claim this 'sokoban-player player)
+      (Claim this 'sokoban-boxes boxes)
       (Claim this 'sokoban-moves (length history)))
 
-    (When ((?p wishes (this set-state ?new))) do
-      (if (not solved) (accept! ?new)))
+    (When ((?p wishes (this set-state ?next))) do
+      (if (not solved) (accept! ?next)))
 
     ; The winning move comes in as its own kind of wish rather than as a set-state plus a
     ; separate 'lock' wish: wishes made in the same tick are handled in no particular order,
     ; so a lock could otherwise land first and reject the winning move itself.
-    (When ((?p wishes (this set-solved-state ?new))) do
+    (When ((?p wishes (this set-solved-state ?next))) do
       (if (not solved)
-          (begin (accept! ?new)
+          (begin (accept! ?next)
                  (set! solved #t))))
 
     (When ((?p wishes (this undo #t))) do
       (if (and (not solved) (pair? history))
-          (begin (set! board (car history))
+          (begin (set! player (car (car history)))
+                 (set! boxes (cadr (car history)))
                  (set! history (cdr history)))))
 
     (When ((?p wishes (this reset #t))) do
       (if (not solved)
-          (begin (set! board init)
+          (begin (set! player init-player)
+                 (set! boxes init-boxes)
                  (set! history '())))))))
 
 (define first-steps (level-page
@@ -114,75 +135,51 @@
 ; The rules of Sokoban: walk onto floor, push a single box onto floor.
 ; Swap this page for another to play with different rules.
 (define rules (add-page (make-page-code
-  (define (stride board)
-    (let loop ((i 0))
-      (if (char=? (string-ref board i) #\newline) (+ i 1) (loop (+ i 1)))))
-
-  (define (find-player cells)
-    (let loop ((i 0))
-      (if (memv (vector-ref cells i) '(#\@ #\+)) i (loop (+ i 1)))))
-
-  (define (offset dir width)
+  (define (offset dir)
     (case dir
-      ((up) (- width))
-      ((down) width)
-      ((left) -1)
-      ((right) 1)
-      (else 0)))
+      ((up) '(0 . -1))
+      ((down) '(0 . 1))
+      ((left) '(-1 . 0))
+      ((right) '(1 . 0))
+      (else '(0 . 0))))
 
-  (define (goal? c) (memv c '(#\. #\+ #\*)))
-  (define (floor? c) (memv c '(#\space #\.)))
-  (define (box? c) (memv c '(#\$ #\*)))
+  (define (add pos d)
+    (cons (+ (car pos) (car d)) (+ (cdr pos) (cdr d))))
 
-  ; returns the new board, or #f if the move is blocked
-  (define (step board dir)
-    (let* ((cells (list->vector (string->list board)))
-           (n (vector-length cells))
-           (d (offset dir (stride board)))
-           (p (find-player cells))
-           (t (+ p d))
-           (t2 (+ t d)))
-      (define (cell i) (if (and (>= i 0) (< i n)) (vector-ref cells i) #\#))
-      ; put something in a cell, keeping track of whether it is a goal
-      (define (put! i what)
-        (let ((g (goal? (cell i))))
-          (vector-set! cells i
-            (case what
-              ((player) (if g #\+ #\@))
-              ((box) (if g #\* #\$))
-              (else (if g #\. #\space))))))
+  ; returns the next (player boxes), or #f if the move is blocked
+  (define (step walls boxes player dir)
+    (let* ((d (offset dir))
+           (target (add player d))
+           (beyond (add target d)))
       (cond
-        ((floor? (cell t))
-         (put! p 'empty)
-         (put! t 'player)
-         (list->string (vector->list cells)))
-        ((and (box? (cell t)) (floor? (cell t2)))
-         (put! t2 'box)
-         (put! p 'empty)
-         (put! t 'player)
-         (list->string (vector->list cells)))
-        (else #f))))
+        ((member target walls) #f)
+        ((not (member target boxes)) (list target boxes))
+        ((or (member beyond walls) (member beyond boxes)) #f)
+        (else (list target (map (lambda (b) (if (equal? b target) beyond b)) boxes))))))
 
-  (define (solved? board)
-    (not (memv #\$ (string->list board))))
+  (define (solved? goals boxes)
+    (let loop ((bs boxes))
+      (cond ((null? bs) #t)
+            ((member (car bs) goals) (loop (cdr bs)))
+            (else #f))))
 
   (When ((?p wishes (?level move ?dir))
-         (?level sokoban-state ?board))
-   do (let ((next (step ?board ?dir)))
+         (?level sokoban-walls ?walls)
+         (?level sokoban-goals ?goals)
+         (?level sokoban-boxes ?boxes)
+         (?level sokoban-player ?player))
+   do (let ((next (step ?walls ?boxes ?player ?dir)))
         (cond ((not next) #f)
-              ((solved? next) (Wish ?level 'set-solved-state next))
+              ((solved? ?goals (cadr next)) (Wish ?level 'set-solved-state next))
               (else (Wish ?level 'set-state next)))))
 
-  (When ((?level sokoban-state ?board))
-   do (if (solved? ?board) (Claim ?level 'sokoban-solved #t)))
+  (When ((?level sokoban-goals ?goals)
+         (?level sokoban-boxes ?boxes))
+   do (if (solved? ?goals ?boxes) (Claim ?level 'sokoban-solved #t)))
 )))
 
 ; Draws every level on the table, to the right of its page.
 (define projector (add-page (make-page-code
-  (define (stride board)
-    (let loop ((i 0))
-      (if (char=? (string-ref board i) #\newline) (+ i 1) (loop (+ i 1)))))
-
   (define (num n) (number->string (exact->inexact n)))
 
   (define (svg-element! name attrs)
@@ -201,39 +198,33 @@
     (svg-element! "circle" `(("cx" . ,(num x)) ("cy" . ,(num y)) ("r" . ,(num r))
                              ("fill" . ,fill) ("stroke" . ,stroke) ("stroke-width" . "2"))))
 
-  (define (draw-cell! c x y size)
-    (let ((mx (+ x (/ size 2)))
-          (my (+ y (/ size 2))))
-      (case c
-        ((#\#) (square! x y size "#555"))
-        ((#\$) (square! (+ x 2) (+ y 2) (- size 4) "peru"))
-        ((#\*) (square! (+ x 2) (+ y 2) (- size 4) "seagreen")))
-      (if (memv c '(#\. #\+ #\*)) (circle! mx my (/ size 6) "none" "crimson"))
-      (if (memv c '(#\@ #\+)) (circle! mx my (/ size 3) "royalblue" "none"))))
-
-  (define (draw-board! board left top size)
-    (let ((width (stride board)))
-      (let loop ((i 0))
-        (if (< i (string-length board))
-            (begin
-              (draw-cell! (string-ref board i)
-                          (+ left (* size (modulo i width)))
-                          (+ top (* size (quotient i width)))
-                          size)
-              (loop (+ i 1)))))))
-
-  (When ((?level sokoban-state ?board)
+  (When ((?level sokoban-walls ?walls)
+         (?level sokoban-goals ?goals)
+         (?level sokoban-boxes ?boxes)
+         (?level sokoban-player ?player)
          (?level sokoban-moves ?moves)
          (?level (page left) ?x)
          (?level (page top) ?y)
          (?level (page width) ?w))
    do (let* ((size (/ ?w 2))
              (left (+ ?x ?w 10))
-             (rows (quotient (+ (string-length ?board) 1) (stride ?board)))
+             (rows (+ 1 (apply max (map cdr ?walls))))
+             ; top-left corner and center of a grid position
+             (x0 (lambda (pos) (+ left (* size (car pos)))))
+             (y0 (lambda (pos) (+ ?y (* size (cdr pos)))))
+             (cx (lambda (pos) (+ (x0 pos) (/ size 2))))
+             (cy (lambda (pos) (+ (y0 pos) (/ size 2))))
              (text (svg-element! "text" `(("x" . ,(num left))
                                           ("y" . ,(num (+ ?y (* size rows) 16)))
                                           ("style" . "font: 14px sans-serif")))))
-        (draw-board! ?board left ?y size)
+        ; drawn in this order so goal markers show on top of boxes, and the player on top of goals
+        (for-each (lambda (pos) (square! (x0 pos) (y0 pos) size "#555")) ?walls)
+        (for-each (lambda (pos)
+                    (square! (+ (x0 pos) 2) (+ (y0 pos) 2) (- size 4)
+                             (if (member pos ?goals) "seagreen" "peru")))
+                  ?boxes)
+        (for-each (lambda (pos) (circle! (cx pos) (cy pos) (/ size 6) "none" "crimson")) ?goals)
+        (circle! (cx ?player) (cy ?player) (/ size 3) "royalblue" "none")
         (set-inner-html! text (format #f "moves: ~a" ?moves))))
 
   (When ((?level sokoban-solved #t))

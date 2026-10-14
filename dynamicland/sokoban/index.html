@@ -24,7 +24,8 @@
        Once a level is solved it stops listening to keys altogether; lifting it off the table is the only way to play it again.
        Avoid q and e: they rotate the page under the mouse.</p>
     <p>Each part of the game lives on its own page and only talks to the others through claims and wishes.
-       A level page keeps its board as a string and claims it once per tick.
+       A level page is written as text, but parses it into walls, goals, boxes and a player position when it lands on the table.
+       It claims its walls and goals once, and the player and boxes once per tick.
        The rules page answers a wish to move with a wish to set the board to its next state.
        The projector draws any level it sees, and the controls page translates key presses into move wishes on whatever the keyboard points at.
        Take the rules page off the table and the levels freeze; take the projector off and they keep working, unseen.</p>
