@@ -173,8 +173,10 @@
             (if (not (equal? ?next objects)) (change! ?next))
             (set! phase 'ready))))
 
-    (When ((?p wishes (this solved #t))) do
-      (set! solved #t))
+    ; Physics sends along the objects it judged. If an undo or reset got in first,
+    ; those are no longer our objects, and the level must not lock in an unsolved state.
+    (When ((?p wishes (this solved ?judged))) do
+      (if (equal? ?judged objects) (set! solved #t)))
 
     ; history only holds states that were already transformed, so no need to do it again
     (When ((?p wishes (this undo #t))) do
@@ -435,7 +437,7 @@
   (When ((?level baba-phase ready)
          (?level baba-objects ?objects)
          (?level baba-rules ?rules))
-   do (if (won? ?objects ?rules) (Wish ?level 'solved #t)))
+   do (if (won? ?objects ?rules) (Wish ?level 'solved ?objects)))
 
   ; Nothing to control: no rule makes anything YOU, or nothing of that kind is left.
   ; Moves still go through but do nothing; undo and reset go straight to the level page.
