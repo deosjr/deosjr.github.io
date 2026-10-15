@@ -23,7 +23,9 @@
 ; - the words page says which words are nouns, verbs and properties
 ; - the grammar page lets every verb claim the rows of three it sits in the middle of,
 ;   and turns rows that read noun-verb-property or noun-verb-noun into rules like
-;   (baba is you property) or (rock is flag noun)
+;   (baba is you property) or (rock is flag noun). It reads word pages lined up on the table
+;   the same way; those rules hold for every level on the table.
+; - word pages (BABA, IS, YOU, ROCK) are words on paper instead of text inside a level
 ; - the physics page moves whatever is YOU, transforms things, and decides when a level is won
 ; - the projector page draws any level it can see
 ; - a controls page turns key presses into move wishes on whatever level the keyboard points at
@@ -98,6 +100,15 @@
     ; Applying them only once per move means ROCK IS FLAG plus FLAG IS ROCK swaps them once,
     ; instead of flipping back and forth every tick.
     (define phase 'transform)
+    ; The rules published last time, to notice rules changing while nothing moves, like when
+    ; someone lays word pages out on the table: that also gets transformations one chance.
+    ; #f after an undo, which restores a state that was already transformed.
+    (define last-rules '())
+
+    (define (same-rules? a b)
+      (and (= (length a) (length b))
+           (let loop ((a a))
+             (or (null? a) (and (member (car a) b) (loop (cdr a)))))))
 
     (define (change! next)
       (set! objects next)
@@ -122,13 +133,24 @@
         (if solved (Claim this 'baba-solved #t))
         (if (and settled (not solved))
             (begin
+              (if (and last-rules (not (same-rules? settled-rules last-rules)))
+                  (set! phase 'transform))
+              (set! last-rules settled-rules)
               (Claim this 'baba-rules settled-rules)
               (Claim this 'baba-phase phase)
               (if (and (eq? phase 'ready) (pair? pending))
                   (Claim this 'baba-move (car pending)))))))
 
+    ; the same rule can come from text in the level and from word pages on the table
+    (define (collect! rule)
+      (if (not (member rule rules)) (set! rules (cons rule rules))))
+
     (When ((this baba-rule ?rule)) do
-      (set! rules (cons ?rule rules)))
+      (collect! ?rule))
+
+    ; rules laid out with word pages on the table hold for every level on the table
+    (When ((table baba-rule ?rule)) do
+      (collect! ?rule))
 
     (When ((?p wishes (this move ?dir))) do
       (if (not solved) (set! pending (append pending (list ?dir)))))
@@ -160,7 +182,8 @@
           (begin (change! (car history))
                  (set! history (cdr history))
                  (set! pending '())
-                 (set! phase 'ready))))
+                 (set! phase 'ready)
+                 (set! last-rules #f))))
 
     (When ((?p wishes (this reset #t))) do
       (if (not solved)
@@ -171,7 +194,7 @@
 
 ; Break WALL IS STOP to get to the flag.
 (define wall-is-stop (level-page
-  '("B=Y.w...."
+  '("....w...."
     "....w...."
     "....w..f."
     ".b..w...."
@@ -187,11 +210,11 @@
     "W=S......"
     "...!....."
     ".b......."
-    "B=Y......")))
+    ".........")))
 
 ; The flag is out of reach, but maybe something else could be a flag.
 (define rock-is-flag (level-page
-  '("B=Y..w..."
+  '(".....w..."
     ".....w..."
     "..r..w.f."
     ".....w..."
@@ -211,13 +234,24 @@
 
 ; Baba cannot reach the flag, but something else could.
 (define rock-is-you (level-page
-  '("B=Y..w..."
+  '(".....w..."
     ".....w.r."
     ".b...w..."
     ".....w.f."
     "R....w..."
     ".=...w..."
     "Y....wF=!")))
+
+; Word pages: words as pages on the table rather than text inside a level.
+; Line them up, like BABA IS YOU, and the rule holds for every level on the table.
+(define (word-page word)
+  (add-page (make-page-code
+    (Claim this 'baba-word word))))
+
+(define baba-page (word-page 'baba))
+(define is-page (word-page 'is))
+(define you-page (word-page 'you))
+(define rock-page (word-page 'rock))
 
 ; What the words mean. Take this page off the table and nothing parses.
 (define words (add-page (make-page-code
@@ -252,6 +286,44 @@
             (Claim ?level 'baba-active-text ?first)
             (Claim ?level 'baba-active-text ?middle)
             (Claim ?level 'baba-active-text ?last))))
+
+  ; The same, for word pages on the table: a verb page reads the word pages next to it,
+  ; one page-width to either side and above and below. A word page counts as long as that
+  ; spot falls somewhere on it, so pages need not be perfectly lined up.
+  (When ((?verb baba-word ?v)
+         (?v word-class verb)
+         (?verb (page left) ?x)
+         (?verb (page top) ?y)
+         (?verb (page width) ?w)
+         (?verb (page height) ?h)
+         (?other baba-word ?word)
+         (?other (page left) ?ox)
+         (?other (page top) ?oy)
+         (?other (page width) ?ow)
+         (?other (page height) ?oh))
+   do (let* ((cx (+ ?x (/ ?w 2)))
+             (cy (+ ?y (/ ?h 2)))
+             (on-other? (lambda (px py)
+                          (and (< ?ox px (+ ?ox ?ow))
+                               (< ?oy py (+ ?oy ?oh))))))
+        (if (on-other? (- cx ?w) cy) (Claim ?verb 'baba-reads (list 'horizontal 'before ?word ?other)))
+        (if (on-other? (+ cx ?w) cy) (Claim ?verb 'baba-reads (list 'horizontal 'after ?word ?other)))
+        (if (on-other? cx (- cy ?h)) (Claim ?verb 'baba-reads (list 'vertical 'before ?word ?other)))
+        (if (on-other? cx (+ cy ?h)) (Claim ?verb 'baba-reads (list 'vertical 'after ?word ?other)))))
+
+  ; Word pages reading noun-verb-noun or noun-verb-property, left to right or top to bottom,
+  ; are a rule for the whole table.
+  (When ((?verb baba-word ?v)
+         (?verb baba-reads (?axis before ?subject ?subject-page))
+         (?subject word-class noun)
+         (?verb baba-reads (?axis after ?complement ?complement-page))
+         (?complement word-class ?class))
+   do (if (memq ?class '(noun property))
+          (begin
+            (Claim 'table 'baba-rule (list ?subject ?v ?complement ?class))
+            (Claim ?subject-page 'baba-active-page #t)
+            (Claim ?verb 'baba-active-page #t)
+            (Claim ?complement-page 'baba-active-page #t))))
 )))
 
 ; What the rules do: YOU moves, STOP blocks, PUSH (and all text) gets pushed,
@@ -477,6 +549,10 @@
 
   (When ((?level baba-solved #t))
    do (set-background! (get-page ?level) "gold"))
+
+  ; word pages that are part of a rule light up
+  (When ((?page baba-active-page #t))
+   do (set-background! (get-page ?page) "khaki"))
 )))
 
 ; Controls: when a keyboard points at a level, turn its key presses into wishes.
@@ -576,5 +652,10 @@
 (place! rock-is-you more-pages "rock is you" "31vw")
 (place! rock-is-flag more-pages "rock is flag" "39vw")
 (place! push-it-along more-pages "push it along" "47vw")
+(define word-pages (get-element-by-id "word-pages"))
+(place! baba-page word-pages "BABA" "15vw")
+(place! is-page word-pages "IS" "23vw")
+(place! you-page word-pages "YOU" "31vw")
+(place! rock-page word-pages "ROCK" "39vw")
 
 (recalculate-pages)

@@ -15,9 +15,11 @@
     </p>
     <h2>Baba Is You</h2>
     <p>Put a level, the words, grammar, physics and projector pages and the wasd controls on the table.
+       Nothing is YOU yet: line up the BABA, IS and YOU pages next to each other, left to right or top to bottom.
        Then point the keyboard at the level using its whisker (the whiskers page hands them out) and find a way to win.</p>
     <div id=pages class="pages"></div>
     <div id=more-pages class="pages"></div>
+    <div id=word-pages class="pages"></div>
     <div id=table class="table" style="height:60vh; width:60vw;"></div>
     <p>Move with w/a/s/d, undo with u and reset with r.
        Once a level is solved it stops listening to keys; lifting it off the table resets it.
@@ -31,6 +33,9 @@
        The physics page decides what those rules mean: YOU moves, STOP blocks, PUSH gets pushed, ROCK IS FLAG turns every rock into a flag, and YOU touching WIN wins.
        Pushes are transitive: push a rock into another rock into a word, and the whole line moves, unless something at the end of it cannot.
        Break BABA IS YOU and there is nothing left to control; undo or reset to get out of that.</p>
+    <p>Words also come as pages. A verb page reads the word pages lying next to it on the table, one page-width to either side and above and below,
+       and the grammar page turns BABA IS YOU laid out in pages into a rule for every level on the table.
+       Pages that are part of a rule light up. Swap the BABA page for the ROCK page and rocks move instead.</p>
     <p>Moving needs every active rule at once, but rules are derived one by one during a tick.
        So a level collects the rules claimed about it during one tick and claims them as a single list the next, as long as nothing changed in between.
        Moves wait until the rules have settled.
