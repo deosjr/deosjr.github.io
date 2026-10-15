@@ -16,96 +16,118 @@
 
 (make-dynamic)
 
-; Sokoban, split across pages the same way as the Mora-Jai puzzles:
-; - level pages keep their own state (player and boxes) and claim a snapshot of it each tick
-; - the rules page turns 'move' wishes into 'set-state' wishes, and decides when a level is solved
-; - the projector page draws any level it can see
-; - controls pages turn key presses into wishes on whatever level the keyboard points at
+; Sokoban again, but written the way PuzzleScript would: a handful of small rules about
+; who wants to move where, and an engine that resolves those wants into actual movement.
+; Each section of a PuzzleScript file becomes one or more pages:
+;   LEGEND, LEVELS     -> level pages
+;   RULES              -> one page per rule (push, and pull to swap in for it)
+;   COLLISIONLAYERS    -> the movement page, which is the engine's movement step
+;   WINCONDITIONS      -> the win page
+; plus a geometry page, since datalog cannot add 1 to a coordinate itself.
 ;
-; Levels are written in the usual Sokoban text format:
-;   # wall   @ player   $ box   . goal   + player on goal   * box on goal
-; but a level page parses that into positions (x . y) when it first lands on the table.
-; Nothing else sees the text. Each level claims:
-;   (level sokoban-walls (pos ...))   static, claimed once
-;   (level sokoban-goals (pos ...))   static, claimed once
-;   (level sokoban-player pos)        each tick
-;   (level sokoban-boxes (pos ...))   each tick
-;   (level sokoban-moves n)           each tick
-;
-; Timing: a level claims its state once per tick, in a When that only depends on its own claim.
-; A move wish updates the state locally, which becomes visible to other pages next tick.
-; Keys are claimed for exactly one tick, so one key press is exactly one move.
+; A turn takes two ticks:
+;   tick 1: the level claims (level wants ((player pos) dir)) for every player.
+;           Rules spread wants to other things during this tick's fixpoint;
+;           this is PuzzleScript's "apply every rule as often as it can".
+;           The level collects every want claimed about it.
+;   tick 2: the level claims all collected wants as one list, and the movement page
+;           resolves them into new positions.
+; Facts each level claims, every tick:
+;   (level thing (kind pos))     one per object, e.g. (crate (3 . 2))
+;   (level objects (thing ...))  all of them as one list
+;   (level moves n)
 
 (define pages (get-element-by-id "pages"))
 (define more-pages (get-element-by-id "more-pages"))
 
-; Every level page has the same code apart from its starting board.
-; In Dynamicland you would print copies of one page with a different board on each.
+; LEGEND and LEVELS
 (define (level-page rows)
   (add-page (make-page-code
-    (define walls '())
-    (define goals '())
-    (define init-boxes '())
-    (define init-player #f)
+    (define legend
+      '((#\# wall) (#\$ crate) (#\@ player) (#\. target)
+        (#\* crate target) (#\+ player target)))
 
-    (let loop-rows ((rows rows) (y 0))
-      (when (pair? rows)
-        (let loop-cols ((cs (string->list (car rows))) (x 0))
-          (when (pair? cs)
-            (let ((pos (cons x y))
-                  (c (car cs)))
-              (if (char=? c #\#) (set! walls (cons pos walls)))
-              (if (memv c '(#\. #\+ #\*)) (set! goals (cons pos goals)))
-              (if (memv c '(#\$ #\*)) (set! init-boxes (cons pos init-boxes)))
-              (if (memv c '(#\@ #\+)) (set! init-player pos)))
-            (loop-cols (cdr cs) (+ x 1))))
-        (loop-rows (cdr rows) (+ y 1))))
+    (define (parse rows)
+      (let loop-rows ((rows rows) (y 0) (acc '()))
+        (if (null? rows)
+            (reverse acc)
+            (let loop-cols ((cs (string->list (car rows))) (x 0) (acc acc))
+              (if (null? cs)
+                  (loop-rows (cdr rows) (+ y 1) acc)
+                  (let ((kinds (cdr (or (assv (car cs) legend) '(#f)))))
+                    (loop-cols (cdr cs) (+ x 1)
+                               (append (map (lambda (k) (list k (cons x y))) kinds) acc))))))))
 
-    (define player init-player)
-    (define boxes init-boxes)
-    ; previous (player boxes) states, most recent first
+    (define init (parse rows))
+    (define objects init)
     (define history '())
-    ; once solved, the level ignores all wishes until it is taken off the table,
-    ; which runs this page code again from scratch
     (define solved #f)
+    ; bumped on every change to objects, so we know whether collected wants still apply
+    (define version 0)
+    ; move directions waiting for their turn, oldest first
+    (define pending '())
+    ; wants claimed about this level so far this tick, and the version they were derived from
+    (define wants '())
+    (define wants-version -1)
 
-    ; next is a (player boxes) list
-    (define (accept! next)
-      (set! history (cons (list player boxes) history))
-      (set! player (car next))
-      (set! boxes (cadr next)))
+    (define (change! next)
+      (set! objects next)
+      (set! version (+ version 1)))
 
     (Claim this 'sokoban-level #t)
-    (Claim this 'sokoban-walls walls)
-    (Claim this 'sokoban-goals goals)
 
+    ; runs first thing each tick, since it only depends on our own claim
     (When ((this sokoban-level #t)) do
-      (Claim this 'sokoban-player player)
-      (Claim this 'sokoban-boxes boxes)
-      (Claim this 'sokoban-moves (length history)))
+      (let ((collected wants)
+            (fresh (= wants-version version)))
+        (set! wants '())
+        (set! wants-version version)
+        (Claim this 'objects objects)
+        (for-each (lambda (obj) (Claim this 'thing obj)) objects)
+        (Claim this 'moves (length history))
+        (if solved (Claim this 'solved #t))
+        (cond
+          (solved #f)
+          ; last tick's wants have spread as far as the rules take them: resolve them
+          ((and fresh (pair? collected))
+           (Claim this 'moving collected))
+          ; start a turn: every player wants to move
+          ((pair? pending)
+           (let ((dir (car pending)))
+             (set! pending (cdr pending))
+             (for-each (lambda (obj)
+                         (if (eq? (car obj) 'player)
+                             (Claim this 'wants (list obj dir))))
+                       objects))))))
 
+    (When ((this wants ?want)) do
+      (set! wants (cons ?want wants)))
+
+    (When ((?p wishes (this move ?dir))) do
+      (if (not solved) (set! pending (append pending (list ?dir)))))
+
+    ; the movement page's answer; unchanged if nothing could move
     (When ((?p wishes (this set-state ?next))) do
-      (if (not solved) (accept! ?next)))
+      (if (and (not solved) (not (equal? ?next objects)))
+          (begin (set! history (cons objects history))
+                 (change! ?next))))
 
-    ; The winning move comes in as its own kind of wish rather than as a set-state plus a
-    ; separate 'lock' wish: wishes made in the same tick are handled in no particular order,
-    ; so a lock could otherwise land first and reject the winning move itself.
-    (When ((?p wishes (this set-solved-state ?next))) do
-      (if (not solved)
-          (begin (accept! ?next)
-                 (set! solved #t))))
+    ; The win page sends along the objects it judged. If an undo or reset got in first,
+    ; those are no longer our objects, and the level must not lock in an unsolved state.
+    (When ((?p wishes (this solved ?judged))) do
+      (if (equal? ?judged objects) (set! solved #t)))
 
     (When ((?p wishes (this undo #t))) do
       (if (and (not solved) (pair? history))
-          (begin (set! player (car (car history)))
-                 (set! boxes (cadr (car history)))
-                 (set! history (cdr history)))))
+          (begin (change! (car history))
+                 (set! history (cdr history))
+                 (set! pending '()))))
 
     (When ((?p wishes (this reset #t))) do
       (if (not solved)
-          (begin (set! player init-player)
-                 (set! boxes init-boxes)
-                 (set! history '())))))))
+          (begin (change! init)
+                 (set! history '())
+                 (set! pending '())))))))
 
 (define first-steps (level-page
   '("#######"
@@ -132,54 +154,103 @@
     " #     #"
     " #######")))
 
-; The rules of Sokoban: walk onto floor, push a single box onto floor.
-; Swap this page for another to play with different rules.
-(define rules (add-page (make-page-code
-  (define (offset dir)
+; Datalog cannot do arithmetic on positions, so this page claims which cell is next to which,
+; the same trick as verbs claiming their rows in Baba Is You. Only cells around something
+; that wants to move are ever needed: in front of it (for push) and behind it (for pull).
+(define geometry (add-page (make-page-code
+  (define (step pos dir)
     (case dir
-      ((up) '(0 . -1))
-      ((down) '(0 . 1))
-      ((left) '(-1 . 0))
-      ((right) '(1 . 0))
-      (else '(0 . 0))))
+      ((up) (cons (car pos) (- (cdr pos) 1)))
+      ((down) (cons (car pos) (+ (cdr pos) 1)))
+      ((left) (cons (- (car pos) 1) (cdr pos)))
+      ((right) (cons (+ (car pos) 1) (cdr pos)))))
 
-  (define (add pos d)
-    (cons (+ (car pos) (car d)) (+ (cdr pos) (cdr d))))
+  (define (opposite dir)
+    (case dir ((up) 'down) ((down) 'up) ((left) 'right) ((right) 'left)))
 
-  ; returns the next (player boxes), or #f if the move is blocked
-  (define (step walls boxes player dir)
-    (let* ((d (offset dir))
-           (target (add player d))
-           (beyond (add target d)))
-      (cond
-        ((member target walls) #f)
-        ((not (member target boxes)) (list target boxes))
-        ((or (member beyond walls) (member beyond boxes)) #f)
-        (else (list target (map (lambda (b) (if (equal? b target) beyond b)) boxes))))))
-
-  (define (solved? goals boxes)
-    (let loop ((bs boxes))
-      (cond ((null? bs) #t)
-            ((member (car bs) goals) (loop (cdr bs)))
-            (else #f))))
-
-  (When ((?p wishes (?level move ?dir))
-         (?level sokoban-walls ?walls)
-         (?level sokoban-goals ?goals)
-         (?level sokoban-boxes ?boxes)
-         (?level sokoban-player ?player))
-   do (let ((next (step ?walls ?boxes ?player ?dir)))
-        (cond ((not next) #f)
-              ((solved? ?goals (cadr next)) (Wish ?level 'set-solved-state next))
-              (else (Wish ?level 'set-state next)))))
-
-  (When ((?level sokoban-goals ?goals)
-         (?level sokoban-boxes ?boxes))
-   do (if (solved? ?goals ?boxes) (Claim ?level 'sokoban-solved #t)))
+  (When ((?level wants ((?kind ?pos) ?dir)))
+   do (Claim ?level 'next (list ?pos ?dir (step ?pos ?dir)))
+      (Claim ?level 'next (list (step ?pos (opposite ?dir)) ?dir ?pos)))
 )))
 
-; Draws every level on the table, to the right of its page.
+; [ > Player | Crate ] -> [ > Player | > Crate ]
+; ?dir appears on both sides, which is what PuzzleScript's relative arrow > means.
+(define push (add-page (make-page-code
+  (When ((?level wants ((player ?here) ?dir))
+         (?level next (?here ?dir ?there))
+         (?level thing (crate ?there)))
+   do (Claim ?level 'wants (list (list 'crate ?there) ?dir)))
+)))
+
+; [ < Player | Crate ] -> [ < Player | < Crate ]
+; Swap this in for push and crates follow you around instead.
+(define pull (add-page (make-page-code
+  (When ((?level wants ((player ?here) ?dir))
+         (?level next (?behind ?dir ?here))
+         (?level thing (crate ?behind)))
+   do (Claim ?level 'wants (list (list 'crate ?behind) ?dir)))
+)))
+
+; COLLISIONLAYERS, and the engine's movement step: things on the solid layer cannot share
+; a cell. Anything whose way is clear moves, which may clear the way for whatever is behind
+; it, so keep going until nothing else can move. Whatever is left over does not move.
+(define movement (add-page (make-page-code
+  (define solid '(wall crate player))
+
+  (define (step pos dir)
+    (case dir
+      ((up) (cons (car pos) (- (cdr pos) 1)))
+      ((down) (cons (car pos) (+ (cdr pos) 1)))
+      ((left) (cons (- (car pos) 1) (cdr pos)))
+      ((right) (cons (+ (car pos) 1) (cdr pos)))))
+
+  (define (keep pred xs)
+    (cond ((null? xs) '())
+          ((pred (car xs)) (cons (car xs) (keep pred (cdr xs))))
+          (else (keep pred (cdr xs)))))
+
+  ; objects is a list of (kind pos), moving a list of ((kind pos) dir)
+  (define (resolve objects moving)
+    (let* ((occupied (map cadr (keep (lambda (obj) (memq (car obj) solid)) objects)))
+           (clear? (lambda (want) (not (member (step (cadr (car want)) (cadr want)) occupied))))
+           (go (keep clear? moving)))
+      (if (null? go)
+          objects
+          (resolve (map (lambda (obj)
+                          (let ((want (assoc obj go)))
+                            (if want (list (car obj) (step (cadr obj) (cadr want))) obj)))
+                        objects)
+                   (keep (lambda (want) (not (member want go))) moving)))))
+
+  (When ((?level moving ?moving)
+         (?level objects ?objects))
+   do (Wish ?level 'set-state (resolve ?objects ?moving)))
+)))
+
+; WINCONDITIONS: All Target on Crate
+(define win (add-page (make-page-code
+  (define (positions kind objects)
+    (let loop ((objs objects) (acc '()))
+      (cond ((null? objs) acc)
+            ((eq? (car (car objs)) kind) (loop (cdr objs) (cons (cadr (car objs)) acc)))
+            (else (loop (cdr objs) acc)))))
+
+  (define (all-on? a b objects)
+    (let ((bs (positions b objects)))
+      (let loop ((as (positions a objects)))
+        (or (null? as)
+            (and (member (car as) bs) (loop (cdr as)))))))
+
+  (When ((?level objects ?objects))
+   do (if (all-on? 'target 'crate ?objects) (Wish ?level 'solved ?objects)))
+)))
+
+; Draws every level on the table, to the right of its page. Overlapping things need a
+; drawing order, which datalog does not have, so this draws from the objects list instead,
+; bottom layer first, the way PuzzleScript uses its collision layers.
 (define projector (add-page (make-page-code
+  (define layers '(target wall crate player))
+
   (define (num n) (number->string (exact->inexact n)))
 
   (define (svg-element! name attrs)
@@ -189,68 +260,62 @@
       (append-child! svg elem)
       elem))
 
-  (define (square! x y size fill)
-    (svg-element! "rect" `(("x" . ,(num x)) ("y" . ,(num y))
-                           ("width" . ,(num size)) ("height" . ,(num size))
-                           ("fill" . ,fill))))
+  (define (draw! kind left top size)
+    (let ((mx (+ left (/ size 2)))
+          (my (+ top (/ size 2))))
+      (case kind
+        ((wall) (svg-element! "rect" `(("x" . ,(num left)) ("y" . ,(num top))
+                                       ("width" . ,(num size)) ("height" . ,(num size))
+                                       ("fill" . "#555"))))
+        ((crate) (svg-element! "rect" `(("x" . ,(num (+ left 2))) ("y" . ,(num (+ top 2)))
+                                        ("width" . ,(num (- size 4))) ("height" . ,(num (- size 4)))
+                                        ("fill" . "peru") ("opacity" . "0.8"))))
+        ((target) (svg-element! "circle" `(("cx" . ,(num mx)) ("cy" . ,(num my))
+                                           ("r" . ,(num (/ size 4))) ("fill" . "crimson"))))
+        ((player) (svg-element! "circle" `(("cx" . ,(num mx)) ("cy" . ,(num my))
+                                           ("r" . ,(num (/ size 3))) ("fill" . "royalblue")))))))
 
-  (define (circle! x y r fill stroke)
-    (svg-element! "circle" `(("cx" . ,(num x)) ("cy" . ,(num y)) ("r" . ,(num r))
-                             ("fill" . ,fill) ("stroke" . ,stroke) ("stroke-width" . "2"))))
-
-  (When ((?level sokoban-walls ?walls)
-         (?level sokoban-goals ?goals)
-         (?level sokoban-boxes ?boxes)
-         (?level sokoban-player ?player)
-         (?level sokoban-moves ?moves)
+  (When ((?level objects ?objects)
+         (?level moves ?moves)
          (?level (page left) ?x)
          (?level (page top) ?y)
          (?level (page width) ?w))
    do (let* ((size (/ ?w 2))
              (left (+ ?x ?w 10))
-             (rows (+ 1 (apply max (map cdr ?walls))))
-             ; top-left corner and center of a grid position
-             (x0 (lambda (pos) (+ left (* size (car pos)))))
-             (y0 (lambda (pos) (+ ?y (* size (cdr pos)))))
-             (cx (lambda (pos) (+ (x0 pos) (/ size 2))))
-             (cy (lambda (pos) (+ (y0 pos) (/ size 2))))
+             (rows (+ 1 (apply max (map (lambda (obj) (cdr (cadr obj))) ?objects))))
              (text (svg-element! "text" `(("x" . ,(num left))
                                           ("y" . ,(num (+ ?y (* size rows) 16)))
                                           ("style" . "font: 14px sans-serif")))))
-        ; drawn in this order so goal markers show on top of boxes, and the player on top of goals
-        (for-each (lambda (pos) (square! (x0 pos) (y0 pos) size "#555")) ?walls)
-        (for-each (lambda (pos)
-                    (square! (+ (x0 pos) 2) (+ (y0 pos) 2) (- size 4)
-                             (if (member pos ?goals) "seagreen" "peru")))
-                  ?boxes)
-        (for-each (lambda (pos) (circle! (cx pos) (cy pos) (/ size 6) "none" "crimson")) ?goals)
-        (circle! (cx ?player) (cy ?player) (/ size 3) "royalblue" "none")
+        (for-each (lambda (layer)
+                    (for-each (lambda (obj)
+                                (if (eq? (car obj) layer)
+                                    (draw! layer
+                                           (+ left (* size (car (cadr obj))))
+                                           (+ ?y (* size (cdr (cadr obj))))
+                                           size)))
+                              ?objects))
+                  layers)
         (set-inner-html! text (format #f "moves: ~a" ?moves))))
 
-  (When ((?level sokoban-solved #t))
+  (When ((?level solved #t))
    do (set-background! (get-page ?level) "gold"))
 )))
 
-; Controls: when a keyboard points at a level, turn its key presses into wishes.
-; Two layouts on two pages; put either (or both) on the table.
-(define (controls-page keymap)
-  (add-page (make-page-code
-    (When ((?k keyboard #t)
-           (?k points-at ?level)
-           (?level sokoban-level #t)
-           (?k key-pressed ?key))
-     do (let ((binding (assv ?key keymap)))
-          (if binding
-              (case (cdr binding)
-                ((undo) (Wish ?level 'undo #t))
-                ((reset) (Wish ?level 'reset #t))
-                (else (Wish ?level 'move (cdr binding))))))))))
-
-(define wasd (controls-page
-  '((#\w . up) (#\a . left) (#\s . down) (#\d . right) (#\u . undo) (#\r . reset))))
-
-(define hjkl (controls-page
-  '((#\k . up) (#\h . left) (#\j . down) (#\l . right) (#\u . undo) (#\r . reset))))
+; Controls, unchanged from the Sokoban pages
+(define wasd (add-page (make-page-code
+  (define keymap
+    '((#\w . up) (#\a . left) (#\s . down) (#\d . right) (#\u . undo) (#\r . reset)))
+  (When ((?k keyboard #t)
+         (?k points-at ?level)
+         (?level sokoban-level #t)
+         (?k key-pressed ?key))
+   do (let ((binding (assv ?key keymap)))
+        (if binding
+            (case (cdr binding)
+              ((undo) (Wish ?level 'undo #t))
+              ((reset) (Wish ?level 'reset #t))
+              (else (Wish ?level 'move (cdr binding)))))))
+)))
 
 (define keyboard (add-keyboard))
 
@@ -321,14 +386,17 @@
     (add-text div text)
     (set-style-left! div left)))
 
-(place! keyboard pages "keyboard" "20vw")
-(place! whiskers pages "whiskers" "30vw")
-(place! rules pages "rules" "40vw")
-(place! projector pages "projector" "50vw")
-(place! wasd pages "wasd" "60vw")
-(place! hjkl pages "hjkl" "70vw")
-(place! first-steps more-pages "first steps" "20vw")
-(place! corner more-pages "corner" "30vw")
-(place! warehouse more-pages "warehouse" "40vw")
+(place! keyboard pages "keyboard" "12vw")
+(place! whiskers pages "whiskers" "20vw")
+(place! geometry pages "geometry" "28vw")
+(place! push pages "push" "36vw")
+(place! pull pages "pull" "44vw")
+(place! movement pages "movement" "52vw")
+(place! win pages "win" "60vw")
+(place! projector pages "projector" "68vw")
+(place! wasd pages "wasd" "76vw")
+(place! first-steps more-pages "first steps" "12vw")
+(place! corner more-pages "corner" "20vw")
+(place! warehouse more-pages "warehouse" "28vw")
 
 (recalculate-pages)

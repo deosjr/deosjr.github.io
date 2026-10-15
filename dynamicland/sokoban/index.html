@@ -14,21 +14,31 @@
       Chrome.
     </p>
     <h2>Sokoban</h2>
-    <p>Put a level, the rules, the projector and a set of controls on the table.
-       Then point the keyboard at the level using its whisker (the whiskers page hands them out) and push the boxes onto the goals.</p>
+    <p>Put a level, the geometry, push, movement, win and projector pages and the wasd controls on the table.
+       Then point the keyboard at the level using its whisker (the whiskers page hands them out) and push the crates onto the targets.</p>
     <div id=pages class="pages"></div>
     <div id=more-pages class="pages"></div>
     <div id=table class="table" style="height:60vh; width:60vw;"></div>
-    <p>The wasd page moves with w/a/s/d, the hjkl page with h/j/k/l. Both use u to undo and r to reset.
+    <p>Move with w/a/s/d, undo with u and reset with r.
        Lifting a level off the table and putting it back also resets it, since its page code runs again from scratch.
        Once a level is solved it stops listening to keys altogether; lifting it off the table is the only way to play it again.
        Avoid q and e: they rotate the page under the mouse.</p>
-    <p>Each part of the game lives on its own page and only talks to the others through claims and wishes.
-       A level page is written as text, but parses it into walls, goals, boxes and a player position when it lands on the table.
-       It claims its walls and goals once, and the player and boxes once per tick.
-       The rules page answers a wish to move with a wish to set the board to its next state.
-       The projector draws any level it sees, and the controls page translates key presses into move wishes on whatever the keyboard points at.
-       Take the rules page off the table and the levels freeze; take the projector off and they keep working, unseen.</p>
+    <p>The pages are written in the spirit of <a href="https://www.puzzlescript.net/Documentation/rules101.html">PuzzleScript</a>:
+       a game is a handful of small rules about who wants to move where, plus an engine that turns those wants into movement.
+       Sokoban's one rule, "if a player is trying to walk into a crate, try to push that crate", is the whole push page:</p>
+    <div class=code>
+  ; [ > Player | Crate ] -> [ > Player | > Crate ]
+  (When ((?level wants ((player ?here) ?dir))
+         (?level next (?here ?dir ?there))
+         (?level thing (crate ?there)))
+   do (Claim ?level 'wants (list (list 'crate ?there) ?dir)))
+    </div>
+    <p>A key press makes every player on the level want to move. During that tick the rules spread wants to other things, as often as they can.
+       The next tick the level hands every want to the movement page, which moves whatever has a clear path, until nothing else can move.
+       Datalog cannot add 1 to a coordinate, so the geometry page claims which cell is next to which, around everything that wants to move.
+       The win page checks whether every target has a crate on it.</p>
+    <p>Swap the push page for the pull page and crates follow you around instead of being pushed.
+       Take the movement page off the table and players still want to move, but nothing ever does.</p>
     </main>
   </body>
 </html>
