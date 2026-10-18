@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="../reflect.js"></script>
+    <script type="text/javascript" src="netrunner.js"></script>
+    <link rel="stylesheet" href="../style.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <style>
+      main.wide { max-width: none; }
+      /* smaller pages than the other demos, so the shelves and the whole table fit on one screen */
+      .page { width: 6vh; height: 6vh; }
+      .pages { height: 7vh; }
+      .page .label { font-size: 0.58rem; line-height: 1.1; text-align: center; padding: 1px; }
+      .intro { max-width: 800px; margin: 0 auto; }
+      h3.shelf { font-size: 0.75rem; font-weight: normal; color: #666; margin: 2px 0 0 4vw; }
+      h2 { margin: 0.3em 0; }
+    </style>
+  </head>
+  <body>
+    <main class="wide">
+    <p id="wasm-error" hidden="true">
+      A browser with Wasm GC and tail call support is required for
+      this demo.  We recommend using either Mozilla Firefox or Google
+      Chrome.
+    </p>
+    <h2>Netrunner</h2>
+    <h3 class="shelf">Table pages</h3>
+    <div id=pages class="pages"></div>
+    <h3 class="shelf">Corp cards</h3>
+    <div id=corp-cards class="pages"></div>
+    <h3 class="shelf">Runner cards</h3>
+    <div id=runner-cards class="pages"></div>
+    <div id=table class="table" style="height:68vh; width:96vw;"></div>
+    <div class="intro">
+      <p>A first version of Netrunner on a projected table, following the <a href="https://rules.nullsignal.games/">Netrunner rules</a>, scoped down.
+         Put both identity cards, the referee, the projector and the whiskers on the table: the Corp identity near the top left, the Runner identity near the bottom left.
+         The Corp's servers are drawn to the right of the Corp identity and follow it around.</p>
+    </div>
+    <div class="intro">
+      <h3>Playing</h3>
+      <p>Everything you do is putting a page down somewhere. Put a wand or the installer down with its whisker on a projected button to press it; pick it up and put it down again to press it again.
+         The Corp's installer and wand point down at the board, the Runner's wand and run token point up.</p>
+      <ul>
+        <li><b>Gain 1¢ / Draw 1</b>: buttons under each identity, on that player's turn.</li>
+        <li><b>Flip a card</b>: hover over it and press f. A face-down card can't be read, so the table doesn't see it.</li>
+        <li><b>Install (Corp)</b>: put the installer on "+ ice" in front of a server, or on "+ new remote". The table adds a slot; lay the card in it face down.</li>
+        <li><b>Rez</b>: flip the card face up in its slot. Assets any time, ice only while the Runner approaches it.</li>
+        <li><b>Advance</b>: put the Corp wand on a remote's slot, then on "Advance".</li>
+        <li><b>Score, play an Operation or Event</b>: put the card in the resolution box. If more than one slot could hold the agenda, point the Corp wand at the right one.</li>
+        <li><b>Remove a slot</b>: put the installer on it, then the Corp wand on "Remove".</li>
+        <li><b>Install (Runner)</b>: put a program or resource in the rig.</li>
+        <li><b>Run</b>: put the run token below a server with its whisker pointing at it. Lift it and put it down again for the next run.</li>
+        <li><b>During a run</b>: the Corp rezzes or presses Pass; the Runner breaks subroutines, lets the rest fire, continues or jacks out, and lays the accessed card face up in the resolution box (put it back face down afterwards).</li>
+      </ul>
+      <p>In this version: one card accessed per run, nothing to access in Archives, agenda text ignored, no traces, tags, damage or viruses.
+         Deck counts are nominal 30-card decks; all the cards are on the shelves, so draw honestly.
+         Avoid q and e unless you mean to: they rotate the page under the mouse.</p>
+    </div>
+    </main>
+  </body>
+</html>

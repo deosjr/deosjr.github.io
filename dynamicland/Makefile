@@ -41,10 +41,14 @@ sokoban: sokoban/sokoban.scm
 baba: baba/baba.scm
 	$(COMPILE) -o baba/baba.wasm baba/baba.scm
 
+.PHONY: netrunner
+netrunner: netrunner/netrunner.scm
+	$(COMPILE) -o netrunner/netrunner.wasm netrunner/netrunner.scm
+
 energy: grid/grid.scm
 	$(COMPILE) -o grid/grid.wasm grid/grid.scm
 
 serve:
 	@python3 -m http.server
 
-run: dynamicland datalog whiskers variables wiki keyboard blue sokoban baba energy live serve
+run: dynamicland datalog whiskers variables wiki keyboard blue sokoban baba netrunner energy live serve
