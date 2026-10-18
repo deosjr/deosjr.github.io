@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="../reflect.js"></script>
+    <script type="text/javascript" src="reus.js"></script>
+    <link rel="stylesheet" href="../style.css">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <style>
+      main.wide { max-width: none; }
+      .page .label { font-size: 0.75rem; text-align: center; padding: 2px; }
+      .intro { max-width: 800px; margin: 0 auto; }
+      h2 { margin: 0.3em 0; }
+    </style>
+  </head>
+  <body>
+    <main class="wide">
+    <p id="wasm-error" hidden="true">
+      A browser with Wasm GC and tail call support is required for
+      this demo.  We recommend using either Mozilla Firefox or Google
+      Chrome.
+    </p>
+    <h2>Reus</h2>
+    <div id=pages class="pages"></div>
+    <div id=table class="table" style="height:78vh; width:94vw;"></div>
+    <div class="intro">
+      <p>A first version of <a href="https://store.steampowered.com/app/1606930/Reus_2/">Reus 2</a> on a projected table, for several players at once.
+         Put the planet in the middle of the table, then the codex, the whiskers and the projector.
+         Every player takes a giant: its page is also its pointer, so whatever its whisker points at, the giant acts on.</p>
+      <ul>
+        <li><b>Walk</b>: point the whisker at the planet's ring. The giant walks around the planet to that spot.</li>
+        <li><b>Plant</b>: point the whisker just past the ring, along your giant's own direction, where its two faint dots are.
+            Its biotica appear; hold the whisker on one for a second to plant it in the patch the giant stands on.
+            Planting over a bioticum replaces it.</li>
+        <li><b>Wait</b>: point anywhere else and the giant stays where it is.</li>
+      </ul>
+      <p>Turn a page with q and e to aim its whisker. Each patch shows what grows there and its yield in food · gold · science;
+         the planet's total is in the middle.
+         Biotica help their neighbours: Blueberry gives more food next to a mineral, Moss Agate more gold next to a plant,
+         and a Stoat more gold next to another critter, such as a Rabbit.</p>
+      <p>Lifting a giant's page takes the giant off the planet, and putting it back returns it where it stood.
+         Lifting the planet starts the world over.
+         When two giants plant in the same patch at the same moment, the planet lets the first giant on the shelf go first.</p>
+    </div>
+    </main>
+  </body>
+</html>
