@@ -83,6 +83,15 @@ main {
 	box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.5);
 }
 
+/* a page flipped face down (press f while hovering it): its front, and its code, are hidden */
+.page.facedown {
+	background: repeating-linear-gradient(45deg, #2E5A9E 0 6px, #4A78C0 6px 12px);
+}
+
+.page.facedown > * {
+	visibility: hidden;
+}
+
 .page.dragging {
 	z-index: 1;
 	cursor: grabbing;

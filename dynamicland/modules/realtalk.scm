@@ -438,7 +438,7 @@
     (set-style-left! div (format #f "~apx" x))
     (set-style-top!  div (format #f "~apx" y))
     (let* ((table (get-element-by-id "table"))
-           (on-table ((on-table? table) pid))
+           (on-table (and ((on-table? table) pid) (not (facedown? pid))))
            (last (hashtable-ref *page-locations* pid #f)))
       (if on-table (update-page-geometry pid div))
       (cond ((and on-table (not last))
@@ -461,8 +461,34 @@
   (add-event-listener! div "keydown" (procedure->external (lambda (e)
     (let ((key (string-ref (get-key e) 0))
           (rot 15))
-      (if (eq? key #\q) (update-page-rotation div pid (- rot))
-      (if (eq? key #\e) (update-page-rotation div pid rot))))))))
+      (cond ((eq? key #\q) (update-page-rotation div pid (- rot)))
+            ((eq? key #\e) (update-page-rotation div pid rot))
+            ((eq? key #\f) (flip-page div pid))))))))
+
+; --- Flipping ---------------------------------------------------------
+;
+; A page's code is printed on its front, so a page lying face down can't be read:
+; as far as the table is concerned it isn't there. Flipping a page face down on the
+; table retracts everything it claimed, as if it was lifted off; flipping it face up
+; runs its code again.
+
+(define *facedown* (make-hashtable))
+(define (facedown? pid) (hashtable-ref *facedown* pid #f))
+
+(define (flip-page div pid)
+  (let* ((table (get-element-by-id "table"))
+         (on-table ((on-table? table) pid))
+         (down (not (facedown? pid))))
+    (hashtable-set! *facedown* pid down)
+    (if down (add-class! div "facedown") (remove-class! div "facedown"))
+    (if on-table
+        (if down
+            (begin (hashtable-delete! *page-locations* pid)
+                   (retract-page-geometry pid)
+                   (page-moved-from-table table pid))
+            (begin (update-page-geometry pid div)
+                   (hashtable-set! *page-locations* pid table)
+                   (page-moved-onto-table table pid))))))
 
 ; make page div dimensions known in datalog
 ; page dimensions are relative to the table they are on!
@@ -507,7 +533,7 @@
   (let* ((div-rotation (get-div-rotation div))
          (new-rotation (modulo (+ (get-div-rotation div) n) 360))
          (table (get-element-by-id "table"))
-         (on-table ((on-table? table) pid)))
+         (on-table (and ((on-table? table) pid) (not (facedown? pid)))))
     (set-style-transform! div (format #f "rotate(~adeg)" new-rotation ))
     (if on-table
       (let ((rotation (dl-find (fresh-vars 1 (lambda (x) (dl-findo dl ( (,pid (page rotation) ,x) )))))))
@@ -536,12 +562,12 @@
 ; effects will need to be explicitly undone. This needs reversible effects, and the reverse-function can perhaps also use the dl-db?
 ; instead of resetting all pages each loop, we can run all reverse-effects caused by a paper that just left the table
 ; reverse of set-background! would be set-background! to "", for example. fixpoint should run after to mitigate clashes, theyre undefined anyways
-(define (reset-page-style! pagediv)
+(define (reset-page-style! pid pagediv)
   (let ((left (get-left pagediv))
         (top (get-top pagediv))
         (transform (get-transform pagediv))
         (z (get-z-index pagediv)))
-    (set-attribute! pagediv "class" "page")
+    (set-attribute! pagediv "class" (if (facedown? pid) "page facedown" "page"))
     (set-style! pagediv "")
     (set-style-left! pagediv left)
     (set-style-top! pagediv top)
@@ -560,7 +586,7 @@
     ; the latter can contain things like images, but svg is preferred for most projections
     (set-inner-html! (query-selector table-div "svg") "")
     (set-inner-html! (query-selector table-div "other") "")
-    (for-each (lambda (pid) (reset-page-style! (hashtable-ref *divs* pid #f))) *pages*)
+    (for-each (lambda (pid) (reset-page-style! pid (hashtable-ref *divs* pid #f))) *pages*)
     (assert-time)
     ; todo: do we need to reset dl-idb ?
     ; currently rules execute each time a page is moved, which is not what I'd expect
